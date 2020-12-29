@@ -10,9 +10,7 @@ import os
 import sys
 import re
 import MySQLdb
-
-dsn_tar = dict(host='192.168.2.210', user='tarif', passwd='tarif626', db='tarif', use_unicode=True, charset='utf8',
-               connect_timeout=5)
+from modules import cfg              # конфиг
 
 root = os.path.realpath(os.path.dirname(sys.argv[0]))
 logfile = "{root}/log/{file}".format(root=root, file='num4gorod.log')
@@ -68,8 +66,7 @@ if __name__ == '__main__':
         '996-9166596',
     )
 
-    sn = SpsNumber(dsn=dsn_tar)
+    sn = SpsNumber(dsn=cfg.dsn_tar)
     for num in numbers:
         info = sn.get_info_number(num)
         print("{num} -> {info}".format(num=num, info=info))
-
