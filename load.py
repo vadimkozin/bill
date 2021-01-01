@@ -233,8 +233,8 @@ class Stat(object):
         if to.startswith('9818'):   # 98189263072135 -> 89263072135
             return to[3:]
         if tox:
-                if "810" + to == tox:    # to=37167005514 tox=81037167005514
-                    to = tox
+            if "810" + to == tox:    # to=37167005514 tox=81037167005514
+                to = tox
         if to.startswith('9'):
             return to[1:]
         return to
@@ -339,18 +339,18 @@ class Billing(object):
         self.db.close()
 
     def insert(self, table, dt, fm, to, fmx='-', tox='-', sec=0, p='-', op='-', eq='-', link='-', cause=0,
-               l1='-', l2='-', stat='-', sts='-', st='-', vid=0, code='-', fm2='-', to2='-',
+               l1='-', l2='-', stat='-', sts='-', st='-', code='-', fm2='-', to2='-',
                b='-', ok='-', cid=0, cost=0, dnw='-', org='-', zona=0, eqid=0, p2='-'):
 
         min_ = Func.sec2min(sec)
 
         sql = "insert into `%s` (`b`,`ok`,`dt`,`fm`,`to`,`fmX`,`toX`,`fm2`,`to2`,`sec`,`min`," \
-            "`l1`,`l2`,`link`,`p`,`eq`,`pr`,`stat`,`sts`,`st`,`vid`,`code`, `cid`, `sum`, `dnw`, `org`," \
+            "`l1`,`l2`,`link`,`p`,`eq`,`pr`,`stat`,`sts`,`st`,`code`, `cid`, `sum`, `dnw`, `org`," \
             "`zona`,`eqid`,`op`)" \
             " values ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'," \
-              " '%s','%s', '%s', '%s','%s','%s','%s', '%s','%s', '%s', '%s', '%s', '%s')" % \
+              " '%s','%s', '%s', '%s','%s','%s','%s', '%s','%s', '%s', '%s', '%s')" % \
               (table, b, ok, dt, fm, to, fmx, tox, fm2, to2, sec, min_, l1[:7], l2[:7], link[:6], p, eq,
-               cause, stat, sts, st, vid, code, cid, cost, dnw, org, zona, eqid, op)
+               cause, stat, sts, st, code, cid, cost, dnw, org, zona, eqid, op)
         # print(sql)
 
         self.cur.execute(sql)
@@ -1088,7 +1088,9 @@ class Smg(object):
                                      sts=sts, b='+', ok='-')
                     update += 1
 
-        Progressbar.go_new_line()
+        if step > 0:
+            Progressbar.go_new_line()
+
         itog_log(info=info, step=step, update=update, t1=t1, t2=time.time())
 
     def findbill(self, fm200, info='-', where=''):
@@ -1195,12 +1197,14 @@ class Smg642(object):
                     #if cid == 58:
                     #    fm = fmr    # (internal number sport)
 
-                    self.bill.insert(self.table, dt=dt, fm=fm, to=to, fmx=fmx, tox=tox, sec=sec, p=p, op=op, eq=eq,
+                    self.bill.insert(self.table, dt=dt, fm=fm, to=to, fmx=fmx, tox=tox, sec=sec, p=op, op=op, eq=eq,
                                      eqid=idd, link=link, cause=cause, l1=str_, l2=dtr, stat=stat,
                                      sts=sts, b='+', ok='-')
                     update += 1
 
-        Progressbar.go_new_line()
+        if step > 0:
+            Progressbar.go_new_line()
+
         itog_log(info=info, step=step, update=update, t1=t1, t2=time.time())
 
     def setstat(self, where=None, info='-'):
@@ -1280,7 +1284,9 @@ class Smg642(object):
                                      sts=sts, b='+', ok='-', p2=p2)    # p2=# - marker double record; p2=+ (asterisk->asterisk for 710*)
                     update += 1
 
-        Progressbar.go_new_line()
+        if step > 0:
+            Progressbar.go_new_line()
+
         itog_log(info=info, step=step, update=update, t1=t1, t2=time.time())
 
 # end class Smg642
@@ -2070,10 +2076,10 @@ try:
     print("work: {0:0.2f} sec".format(t2 - t1, ))
     itog_log(info='end', step=0, update=0, t1=t1, t2=time.time())
 
-    rec = bill.split626(dsn_tel=cfg.dsn_tel, tab_split='`telefon`.`num626rss`', info='split626')
-    msg = "626xxxx : разделено на G|R {rec} записей".format(rec=rec)
-    print(msg)
-    log.info(msg)
+    # rec = bill.split626(dsn_tel=cfg.dsn_tel, tab_split='`telefon`.`num626rss`', info='split626')
+    # msg = "626xxxx : разделено на G|R {rec} записей".format(rec=rec)
+    # print(msg)
+    # log.info(msg)
 
     log.warning('.')
 

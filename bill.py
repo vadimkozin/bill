@@ -4,7 +4,7 @@
 Биллинг телефонии (created: 2016_03)
  opt.table = 'Y2016M03'
  opt.log = filename
- opt.filenoexistnumber = filename2
+ opt.filenoexistnumber = filename_no_exist_number
  bill = Billing(opt)
  bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where=None)
 """
@@ -23,7 +23,6 @@ from modules import codedef          # коды СПС
 from modules import customers        # клиенты
 from modules import link             # текущая разбираемая связь
 from modules import result           # итоги по отбираемым записям
-# from modules import rules            # бизнес-правила
 from modules import numbers1         # номера
 from modules import tarmts           # тарифы МТС
 from modules import calltype         # тип звонка (M W S Z V G)
@@ -77,17 +76,34 @@ class Update(object):
         :param lnk: объект link с инфо для сохранения
         """
         a = lnk
-        sql = "UPDATE `{base}`.`{table}` SET _f='+', _cid={cid}, _cidr={cidr}, _cidb={cidb}, _org='{org}', " \
-              "_orgr='{orgr}', _orgb='{orgb}', _stat='{stat}', _sts='{sts}',_zona={zona}, _code='{code}', " \
-              "_desc='{desc}', _tar={tar}, _tara={tara}, _sum={sum}, _sum2={sum2}, _suma={suma}, _dnw='{dnw}', " \
-              "_nid='{nid}', _tid={tid}, _uf='{uf}', _pid={pid}" \
-              " WHERE id={idx}".\
-            format(base=self.dsn['db'], table=self.table, cid=a.cid, cidb=a.cid_bill, org=a.org, stat=a.stat, sts=a.sts,
-                   zona=a.zona, code=a.code, desc=a.desc, tar=a.tar, tara=a.tara, sum=a.sum, sum2=a.sum2, suma=a.suma,
-                   dnw=a.dnw, idx=a.id, cidr=a.cid_rule, orgr=a.org_rule, orgb=a.org_bill, nid=a.nid, tid=a.tid_t,
-                   uf=a.uf, pid=a.pid)
+
+        sql = "UPDATE `{base}`.`{table}` SET _f='+', _cid={cid}, _org='{org}', " \
+              "_stat='{stat}', _sts='{sts}', _zona={zona}, _code='{code}', " \
+              "_desc='{desc}', _name='{name}', _tar={tar}, _tara={tara}, _sum={sum}, _sum2={sum2}, _suma={suma}, " \
+              "_dnw='{dnw}', _nid='{nid}', _tid={tid}, _uf='{uf}', _pid={pid}," \
+              " fm2='{fm2}', st='{st}', to2='{to2}'" \
+              " WHERE id={idx}". \
+            format(base=self.dsn['db'], table=self.table, cid=a.cid, org=a.org, stat=a.stat, sts=a.sts,
+                   zona=a.zona, code=a.code, desc=a.desc, name=a.name, tar=a.tar, tara=a.tara, sum=a.sum, sum2=a.sum2,
+                   suma=a.suma, dnw=a.dnw, idx=a.id, nid=a.nid, tid=a.tid_t, uf=a.uf, pid=a.pid,
+                   fm2=a.fm2, st=a.st, to2=a.to2)
+
         # print(sql)
         self.cursor.execute(sql)
+
+    def update_table(self):
+        """
+        Обновление полей таблицы (поля без _) данными из нового расчёта (поля с префиксом _)
+        Зачем?: на эти поля (без _) пока настроена программа расшифровок на Access
+        :return: количество обновлённых записей
+        """
+
+        sql = "UPDATE `{base}`.`{table}` SET uf=_uf, cid=_cid, pid=_pid, stat=_stat, sts=_sts, dnw=_dnw, sum=_sum, " \
+              "sum2=_sum2, sumKOM=_suma, naprKOM=_name, org=_org, zona=_zona, code=_code, tid=_tid, ok=_f". \
+            format(base=self.dsn['db'], table=self.table)
+
+        self.cursor.execute(sql)
+        return self.cursor.rowcount
 
 
 class Billing(object):
@@ -168,7 +184,9 @@ class Billing(object):
             q.__init__()
             q.id, q.dt, q.fm, q.fmx, q.to, q.tox, q.sec, q.min, q.op = line
             q.dnw = cal.dnw(q.dt)
+            q.to2 = q.to
             q.to = Func.prepare_to(q.to)
+            q.fm2 = Func.get_number_fm2(q.fm, q.fmx)
             # print "{dt} {fm} {to} {tox} {sec} {min}".format(dt=q.dt, fm=q.fm, to=q.to, tox=q.tox, sec=q.sec,min=q.min)
 
             # по номеру узнаем клиента
@@ -194,9 +212,11 @@ class Billing(object):
 
             # стоимость 1 мин и тд.
             # 2020-12-24 number -> cid -> tid -> cost 1 min
-            q.sts, q.code, q.zona, q.tar, q.tara, q.desc, q.nid = \
-                self.mts.get_sts_code_zona_tar_tara_name_nid(tid=q.tid_t, org=q.org_bill, to=q.to, tox=q.tox)
-            q.stat = self.ctype.get_mwszg(q.sts)   # M, W, S, Z, G, V
+            q.sts, q.code, q.zona, q.tar, q.tara, q.nid, q.desc, q.name = \
+                self.mts.get_sts_code_zona_tar_tara_nid_desc_name(tid=q.tid_t, org=q.org, to=q.to, tox=q.tox)
+            q.stat = self.ctype.get_mwszg(q.sts)        # M, W, S, Z, G, V
+            q.st = cfg.stat2st.get(q.stat, '-')         # MG VZ GD
+            # q.code2 = Func.get_code2(q.code, q.stat)    # 9002093666 -> 900209, 7831 -> 7831
 
             # в итоге - стоимость разговора
             q.sum = q.tar * q.min           # sum - сумма клиенту (ЮЛ-без НДС; ФЛ-с НДС)
@@ -220,7 +240,7 @@ class Billing(object):
                 res.add(q.sts, q.sec, q.min, q.sum2, q.suma)
 
             # поля не используются, но пока в БД записываются
-            q.cid_rule, q.org_rule, q.org_bill = (0, '-', '-')
+            # q.cid_rule, q.org_rule, q.org_bill = (0, '-', '-')
 
             # обновление записи
             if save_db:
@@ -235,6 +255,11 @@ class Billing(object):
         t2 = time.time()
         itog_log(info=res.result_all())
         itog_log(info, step=step, update=step_update, tm1=t1, tm2=t2, cost=sum_cust, min_mg=res.get_result_mg()['min'])
+
+        # обновление полей таблицы
+        records = upd.update_table()
+        itog_log(info="updated: {records} records: field = _field ".format(records=records))
+
         itog_log('.')
 
 

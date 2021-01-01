@@ -14,7 +14,7 @@ class CustReplace(object):
     """
     def __init__(self, dsn):
         self.dsn = dsn
-        self.cust = dict()
+        self._customers = dict()
         self.create_custmap()
 
     def create_custmap(self):
@@ -28,7 +28,7 @@ class CustReplace(object):
         cursor.execute(sql)
         for line in cursor:
             cid, cid_new = line
-            self.cust[cid] = cid_new
+            self._customers[cid] = cid_new
 
         cursor.close()
         db.close()
@@ -39,14 +39,14 @@ class CustReplace(object):
         :param cid: код клиента из таблицы номеров (cid=telefon.tel.cid)
         :return: код клиента для выставления счёта cid_new
         """
-        return self.cust.get(int(cid), cid)
+        return self._customers.get(int(cid), cid)
 
     def print_cust(self):
         """
         Печать информации по всем клиентам замещения
         """
-        for cid in self.cust.keys():
-            print("{cid} -> {cid_new}".format(cid=cid, cid_new=self.cust[cid]))
+        for cid in self._customers.keys():
+            print("{cid} -> {cid_new}".format(cid=cid, cid_new=self._customers[cid]))
 
 
 class CustItemKs(object):
@@ -67,10 +67,14 @@ class CustKs(object):
     """
     def __init__(self, dsn):
         self.dsn = dsn
-        self.cust = dict()
+        self._customers = dict()
         self.pid_by_cid = dict()
         self.pid_by_number = dict()
         self.create_custlist()
+
+    @property
+    def customers(self):
+        return self._customers
 
     def create_custlist(self):
         db = MySQLdb.Connect(**self.dsn)
@@ -80,7 +84,7 @@ class CustKs(object):
         cursor.execute(sql)
         for line in cursor:
             pid, cid, tid, custname, tel, xnumber, address = line
-            self.cust[pid] = CustItemKs(pid, cid, tid, custname, tel, address)
+            self._customers[pid] = CustItemKs(pid, cid, tid, custname, tel, address)
             self.pid_by_cid[cid] = pid
             self.pid_by_number[xnumber[1:]] = pid    # 74996428318 -> 4996428318
 
@@ -93,7 +97,7 @@ class CustKs(object):
         :param pid: код клиента
         :return: объект с информацией по клиенту
         """
-        return self.cust.get(pid, '-')
+        return self._customers.get(pid, '-')
 
     def get_pid_by_cid(self, cid):
         """
@@ -118,7 +122,7 @@ class CustKs(object):
         """
         Печать информации по всем клиентам квартирного сектора
         """
-        for pid, p in self.cust.items():
+        for pid, p in self._customers.items():
             print("{pid} {name} {tel} {address}".format(pid=pid, name=p.custname, tel=p.tel, address=p.address))
 
 
@@ -147,8 +151,12 @@ class Cust(object):
     """
     def __init__(self, dsn):
         self.dsn = dsn
-        self.cust = dict()
+        self._customers = dict()
         self.create_custlist()
+
+    @property
+    def customers(self):
+        return self._customers
 
     def create_custlist(self):
         """
@@ -166,8 +174,8 @@ class Cust(object):
         cursor.execute(sql)
         for line in cursor:
             cid, custalias, custname, uf, inn, kpp, dog_rss, dog_date_rss, dog_rsi, dog_date_rsi, tid_t = line
-            self.cust[cid] = CustItem(cid, custalias, custname, uf, inn, kpp, dog_rss, dog_date_rss, dog_rsi,
-                                      dog_date_rsi, tid_t)
+            self._customers[cid] = CustItem(cid, custalias, custname, uf, inn, kpp, dog_rss, dog_date_rss, dog_rsi,
+                                            dog_date_rsi, tid_t)
         cursor.close()
         db.close()
 
@@ -177,7 +185,7 @@ class Cust(object):
         :param cid: код клиента
         :return: объект CustItem с информацией по клиенту
         """
-        return self.cust.get(int(cid), '-')
+        return self._customers.get(int(cid), '-')
 
     def get_tid_t(self, cid):
         """
@@ -185,7 +193,7 @@ class Cust(object):
         :param cid: код клиента
         :return: tid_t - tariff_id for telephone
         """
-        return self.cust.get(int(cid), '-').tid_t
+        return self._customers.get(int(cid), '-').tid_t
 
     def print_cust(self):
         """
@@ -193,7 +201,7 @@ class Cust(object):
         """
         st = "{cid} {uf} {name} ({inn} {kpp}) ({dog_rss} {dog_date_rss}) ({dog_rsi} {dog_date_rsi}) (tid_t: {tid_t})"
         print(st)
-        for cid, p in self.cust.items():
+        for cid, p in self._customers.items():
             print(st.format(cid=cid, uf=p.uf, name=p.custname, inn=p.inn, kpp=p.kpp, dog_rss=p.dog_rss,
                             dog_date_rss=p.dog_date_rss, dog_rsi=p.dog_rsi, dog_date_rsi=p.dog_date_rsi, tid_t=p.tid_t))
 

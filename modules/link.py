@@ -15,25 +15,25 @@ class Link(object):
         self.id = 0             # код анализируемой (текущей) записи в таблице
         self.dt = None          # дата-время вызова
         self.dnw = None         # DNW - время звонка (нужно для тарифов вед_МГ ФГУП РСИ)
-        self.fm = None          # номер от
+        self.fm = None          # номер от 1
         self.fmx = None         # номер от 2
-        self.to = None          # номер куда
+        self.fm2 = None         # номер от для отчётов
+        self.to = None          # номер куда 1
         self.tox = None         # номер куда 2
+        self.to2 = None         # номер куда для отчётов
         self.vpn = False        # номер из ВПН-номеров ?
         self.cust = None        # название клиента
         self.cid = 0            # код клиента (cust id) - из telefon.tkrss.ru
-        self.cid_rule = 0       # код клиента если попал под бизнес-правила в таблице rule_bill
-        self.cid_bill = 0       # код клиента для биллинга ( фактически тарифный план )
         self.org = None         # код принадлежности номера (R, G, I)
-        self.org_rule = None    # код принадлежности номера (R, G, I) - пара для cid_rule
-        self.org_bill = None    # код принадлежности номера (R, G, I) - пара для cid_bill
         self.uf = None          # код организации (u, f)
         self.code = None        # код направления (8312, 9160, 380, ...)
         self.zona = -2          # тарифная зона по России (1-6, 0-Moсква, -1 для зарубежья)
         self.sts = None         # тип звонка (mg mn vz mgs vm gd)
         self.stat = None        # тип звонка (M W S Z V G)
+        self.st = None          # тип звонка (GD MG VZ: G->GD, MWS->MG, Z->VZ ) для отчётов Access
         self.nid = 0            # код направления
         self.desc = None        # направление (Новосибирск)
+        self.name = None        # укрупнённое направление, напр. Вся сотовая кроме ВЗ = 'Россия моб.'
         self.sec = 0            # секунд
         self.min = 0            # полных минут, 50 сек = 1 мин
         self.tar = 0            # клиентский тариф за 1 мин.
@@ -44,8 +44,6 @@ class Link(object):
         self.op = None          # поток (m-Информ, q-Сервис)
         self.tid_t = 0          # код тарифного плана -> tariff.tariff_tel.tid
         self.pid = 0            # код клиента квартирного сектора для cid=549
-
-        # _cid, _cidb, _org, _stat, _zona, _code, _desc, _tar, _tara, _sum, _suma
 
     def prn_title(self):
         """
@@ -66,9 +64,7 @@ class Link(object):
         dt = "{dt} {dnw}".format(dt=self.dt, dnw=self.dnw)
         fm_fmx = "{fm}/{fmx}/{vpn}".format(fm=self.fm, fmx=self.fmx, vpn='+' if self.vpn else '-')
         to_tox = "{to}/{tox}/{op}".format(to=self.to, tox=self.tox, op=self.op)
-        cust_info = "{cid}.{org}/{cid_rule}.{org_rule}/{cid_bill}.{org_bill}/{uf}/'{cust}'".\
-            format(cid=self.cid, cid_rule=self.cid_rule, cid_bill=self.cid_bill, org=self.org, uf=self.uf,
-                   cust=self.cust, org_rule=self.org_rule, org_bill=self.org_bill)
+        cust_info = "{cid}.{org}/{uf}/'{cust}'".format(cid=self.cid, org=self.org, uf=self.uf, cust=self.cust)
         code_zona = "{code}/{zona}".format(code=self.code, zona=self.zona)
         stat_sts = "{stat}/{sts}".format(stat=self.stat, sts=self.sts)
         desc_nid = "'{desc}'({nid})".format(desc=self.desc, nid=self.nid)

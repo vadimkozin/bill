@@ -62,7 +62,7 @@ class Calltype(object):
 
     def getsts(self, to, tox=None):
         """
-        Определяет тип звонка : (mg, mn, vz, vm, gd, xx)
+        Определяет тип звонка : (mg, mn, mgs, vz, vm, gd, xx)
         :param to: вызываемый номер на входе в SMG
         :param tox: вызываемый номер на выходе в SMG (иногда отличается от to)
         return: sts -  один из (mg, mn, vz, vm, gd, xx)

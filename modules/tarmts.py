@@ -470,20 +470,21 @@ class Tarmts(object):
 
         return sts, code, zona, tar, tara, name, nid
 
-    def get_sts_code_zona_tar_tara_name_nid(self, tid, org, to, tox=None):
+    def get_sts_code_zona_tar_tara_nid_desc_name(self, tid, org, to, tox=None):
         """
         Информация по звонку на номер to c тарифным планом tid
         :param tid: код тарифа, например, 1, их всего сейчас 5 штук
         :param org: R|G - договор по номеру с организацией РСС(R) или РСИ(G)
         :param to: вызываемый номер to, например, 988123263992
         :param tox: вызываемый номер tox, например, 988123263992
-        :return: (sts, code, zona, tar, tara, name, nid) : ('mg', '8812', 2, 3.31, 0.18, 'name', 123)
+        :return: (sts, code, zona, tar, tara, nid, desc, name)
+               : ('mgs', '8812', 2, 3.31, 0.18, 123, 'Брянская обл.', 'Россия моб.')
         """
-        code, zona, tar, tara, name, nid = ('-', -2, 0, 0, '-', 0)
+        code, zona, tar, tara, nid, desc, name, stat = ('-', -2, 0, 0, 0, '-', '-', '-')
         sts, prx = self.stat.getsts(to=to, tox=tox)    # ('vz','916025') or ('mg','8312261')
 
         if sts in ('mgs', 'vz'):    # СПС: mgs=S (сотовая по России) vz=Z (ВЗ)
-            code, zona, stat, name = self.cdef.get_mysql_code_zona_stat_reg(prx)  # '903423123', 4, 'mg', 'Дагестан'
+            code, zona, stat, desc = self.cdef.get_mysql_code_zona_stat_reg(prx)  # '903423123', 4, 'mg', 'Дагестан'
             tar = self.gettarmgs2(zona, tid)
             if tar == 0:
                 tar = self.gettarmgs2(zona, self.tiddefault)
@@ -496,29 +497,36 @@ class Tarmts(object):
             for x in self.codes:
                 code, nid, stat = self.split_codenidstat(x)     # '7831_797_MG': code=7831 nid=797 stat=MG
                 if stat == 'MG' and prx.startswith(code[1:]):
-                    name, zona, tar, tara, ok = self.get_name_zona_tar_tara2(nid, tid)
+                    desc, zona, tar, tara, ok = self.get_name_zona_tar_tara2(nid, tid)
                     break
 
         elif sts in ('kz', 'ab'):
             for x in self.codes:
                 code, nid, stat = self.split_codenidstat(x)     # '7831_797_MG': code=7831 nid=797 stat=MG
                 if stat == 'MN' and code.startswith('7') and prx.startswith(code[1:]):
-                    name, zona, tar, tara, ok = self.get_name_zona_tar_tara2(nid, tid)
+                    desc, zona, tar, tara, ok = self.get_name_zona_tar_tara2(nid, tid)
                     break
 
         elif sts == 'mn':
             for x in self.codes:
                 code, nid, stat = self.split_codenidstat(x)         # '1204_265_MN: code=1204 nid=265 stat=MN
                 if stat == 'MN' and prx.startswith(code):
-                    name, zona, tar, tara, ok = self.get_name_zona_tar_tara2(nid, tid)
+                    desc, zona, tar, tara, ok = self.get_name_zona_tar_tara2(nid, tid)
                     break
 
         elif sts == 'gd':
-            name, code, zona = ('Москва', '7' + prx, 0)
+            desc, code, zona = ('Москва', '7' + prx, 0)
         elif sts == 'vm':
-            name, code = ('МГ ФГУП РСИ', prx)
+            desc, code = ('МГ ФГУП РСИ', prx)
 
-        return sts, code, zona, tar, tara, name, nid
+
+        # укрупнённое направление
+        name = cfg.names.get(sts, desc)
+
+        # код направления
+        code = code[:6]
+
+        return sts, code, zona, tar, tara, nid, desc, name
 
 
 if __name__ == '__main__':
@@ -573,11 +581,11 @@ if __name__ == '__main__':
                       format(cid=_cid, num=_num, stat=_stat, code=_code, zona=str(_zona), tar=str(_tar),
                              tara=str(_tara), name=_name, space='', nid=_nid))
 
-                _stat, _code, _zona, _tar, _tara, _name, _nid = \
-                    mts.get_sts_code_zona_tar_tara_name_nid(tid=_tid, org=_org, to=_num)
+                _stat, _code, _zona, _tar, _tara, _nid, _desc, _name,  = \
+                    mts.get_sts_code_zona_tar_tara_nid_desc_name(tid=_tid, org=_org, to=_num)
                 print(" cid:{cid} num:{num:20s} : {stat}/{zona:4s} \t: {tar:5s}/{tara:10s}: "
-                      "{code}/'{name}'/({nid})".
+                      "{code}/'{desc}:{name}'/({nid})".
                       format(cid=_cid, num=_num, stat=_stat, code=_code, zona=str(_zona), tar=str(_tar),
-                             tara=str(_tara), name=_name, space='', nid=_nid))
+                             tara=str(_tara), space='', nid=_nid, desc=_desc, name=_name))
 
     print("size_tariff : {size}".format(size=mts.size_tariff()))

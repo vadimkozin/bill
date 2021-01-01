@@ -167,6 +167,35 @@ class Func(object):
             return num[3:]
         return num
 
+    @staticmethod
+    def get_number_fm2(fm, fmx):
+        """
+        возвращает номер для печати в отчётах (fm2)
+        :param fm: поле fm
+        :param fmx: поле fmx
+        :return: fm2
+        """
+        re_253xx = re.compile('^253\d{2}$')
+        re_8120xxx = re.compile('^8120\d{3}$')
+        re_8124xxx = re.compile('^8124\d{3}$')
+        re_8125xxx = re.compile('^8125\d{3}$')
+
+        is_len_fmx11 = len(fmx) == 11
+
+        if not is_len_fmx11:
+            return '?'
+
+        if fm == fmx:
+            return fm[-7:]   # 84996428448 84996428448 -> 6428448
+        if re_253xx.match(fm) and fmx.startswith('8499'):
+            return fmx[-7:]  # 25331 84996428466 -> 6428466 (cid=58)
+        if re_8120xxx.match(fm) and fmx.startswith('8495'):
+            return fm[-3:]   # 8120101 84956269082 -> 101 (cid=53)
+        if re_8124xxx.match(fm) and fmx.startswith('8495'):
+            return fm[-3:]   # 8124203 84956269696 -> 203 (cid=273)
+        if re_8125xxx.match(fm) and fmx.startswith('8499'):
+            return fm       # 8125207 84996428459 -> 8125207 (cid=58)
+
 
 if __name__ == '__main__':
 
@@ -187,3 +216,9 @@ if __name__ == '__main__':
     for n1 in ('84951234567', '4951234567', '4991234567', '84991234567', '1234567'):
         n2 = Func.get_number_7digits(n1)
         print("{num1:15s} -> {num2}".format(num1=n1, num2=n2))
+
+    print("\n# номер для отчётов fm3:")
+    for fm, fmx in (('25331', '84996428466'), ('8120101', '84956269082'), ('8124203', '84956269696'),
+                    ('8125207', '84996428459'), ('84956261000', '84956261000')):
+        fm3 = Func.get_number_fm2(fm, fmx)
+        print("{fm} {fmx} ->{fm3}".format(fm=fm, fmx=fmx, fm3=fm3))
