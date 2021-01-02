@@ -216,7 +216,6 @@ class Billing(object):
                 self.mts.get_sts_code_zona_tar_tara_nid_desc_name(tid=q.tid_t, org=q.org, to=q.to, tox=q.tox)
             q.stat = self.ctype.get_mwszg(q.sts)        # M, W, S, Z, G, V
             q.st = cfg.stat2st.get(q.stat, '-')         # MG VZ GD
-            # q.code2 = Func.get_code2(q.code, q.stat)    # 9002093666 -> 900209, 7831 -> 7831
 
             # в итоге - стоимость разговора
             q.sum = q.tar * q.min           # sum - сумма клиенту (ЮЛ-без НДС; ФЛ-с НДС)
@@ -238,9 +237,6 @@ class Billing(object):
             # результат
             if q.sum > 0:
                 res.add(q.sts, q.sec, q.min, q.sum2, q.suma)
-
-            # поля не используются, но пока в БД записываются
-            # q.cid_rule, q.org_rule, q.org_bill = (0, '-', '-')
 
             # обновление записи
             if save_db:
