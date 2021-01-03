@@ -6,7 +6,6 @@ num4gorod - определяет номер, для выставления по�
 в повремёнке нужны номера: 626xxxx 642xxxx 710xxxx 627xxxx 81xxxxx
 """
 import os
-import sys
 import re
 import MySQLdb
 import datetime
