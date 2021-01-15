@@ -14,7 +14,7 @@ class Func(object):
     @staticmethod
     def sec2min(sec):
         """ second to min with round to up """
-        return sec/60 + (0, 1)[sec % 60 > 0]
+        return int(sec/60) + (0, 1)[sec % 60 > 0]
 
     @staticmethod
     def cost(sec, tar1min):

@@ -67,6 +67,9 @@ ps.
 2020-12-01 ( 21 rows)
  update smg2.Y2020M11 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
 
+2021-01-12 ( 9 rows)
+ update smg2.Y2020M12 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
+
 """
 import os
 import sys
@@ -107,7 +110,7 @@ class Func(object):
     @staticmethod
     def sec2min(sec):
         """ second to min with round to up """
-        return sec/60 + (0, 1)[sec % 60 > 0]
+        return int(sec/60) + (0, 1)[sec % 60 > 0]
 
     @staticmethod
     def cost(sec, tar1min):
