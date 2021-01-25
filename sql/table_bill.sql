@@ -10,7 +10,7 @@ CREATE TABLE `_TABLE_CREATE_` (
   `fm` char(12) NOT NULL DEFAULT '-' COMMENT 'от кого (с аппаратуры: вход. на порт)',
   `fmX` char(16) NOT NULL DEFAULT '-' COMMENT 'от кого (с аппаратуры: исход. с порта)',
   `fm2` char(12) NOT NULL DEFAULT '-' COMMENT 'от кого (для клиента)',
-  `fm3` char(12) NOT NULL DEFAULT '-',
+  `fm3` char(12) NOT NULL DEFAULT '-' COMMENT 'от кого (для повремёнки)',
   `to` char(25) NOT NULL DEFAULT '-' COMMENT 'к кому (с аппаратуры: вход. на порт)',
   `toX` char(25) NOT NULL DEFAULT '-' COMMENT 'к кому (с аппаратуры: исход. c порта)',
   `to2` char(16) NOT NULL DEFAULT '-' COMMENT 'к кому (для клиента)',
@@ -19,7 +19,7 @@ CREATE TABLE `_TABLE_CREATE_` (
   `sts` char(3) NOT NULL DEFAULT '-' COMMENT '[mg;mn;vz;gd;mgs] - из источника (mgs=S)',
   `stat` char(2) NOT NULL DEFAULT '-' COMMENT '[GMWSZ]: G-город;M-МГ;W-МН;S-сотовая Россия;Z-сотовая Москва',
   `st` char(2) NOT NULL DEFAULT '-' COMMENT 'MG(M+S); MN(W); VZ(Z); GD(G)',
-  `st2` char(2) NOT NULL DEFAULT '-',
+  `stp` char(1) NOT NULL DEFAULT '-' COMMENT '+ в повремёнке, - нет в повремёнке',
   `code` char(8) NOT NULL DEFAULT '-' COMMENT 'код направления',
   `zona` int(3) DEFAULT '0' COMMENT 'зона (0-6 Российские зоны МГ)',
   `tid` int(4) NOT NULL DEFAULT '0' COMMENT 'код тарифного плана',
@@ -83,6 +83,6 @@ CREATE TABLE `_TABLE_CREATE_` (
   `x_p2` char(1) NOT NULL DEFAULT '-' COMMENT 'Пров.Транзитек.РеестрДляСовинтел',
   `x_vid` int(4) NOT NULL DEFAULT '0' COMMENT '=tabCodeVM!id для stat=V',
   `x_org2` char(1) NOT NULL DEFAULT '-',
-
+  `x_st2` char(2) NOT NULL DEFAULT '-',
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;

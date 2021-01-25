@@ -78,8 +78,9 @@ def main(table, where=None):
         elif cid == 957 and re_811.match(fm):   # ?
             num = fm
 
-        elif cid == 787 and re_811.match(fm2) and fmx == '84956261901':
-            num = '6261901'
+        # Инител
+        # elif cid == 787 and re_811.match(fm2) and fmx == '84956261901':
+        #     num = '6261901'
 
         sql = "UPDATE {table} SET fm3='{num}' WHERE id={idx}".format(table=table, num=num, idx=idx)
         cursor.execute(sql)
