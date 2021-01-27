@@ -4,11 +4,14 @@
 """
 Биллинг локальной (местной связи) , она-же повремёнка
 run: local.py --year=2021 --month=1    // расчёт повремёнки за январь-2021
+
 таблицы как основа:
-tarif.loc_tariff - таблица с тарифами местной связи (id, tid, abmin, cost1min, prim)
-tarif.loc_stream - таблица с тарифами по номерам в потоке
-bill.loc_results - таблица с результатами по номерам клиентов
+tarif.loc_numbers_tar - таблица с тарифами местной связи по номерам
+tarif.loc_stream_tar - таблица с тарифами по номерам в потоке
+bill.loc_numbers - таблица с результатами по номерам клиентов
+bill.loc_stream - таблица с результатами по номерам в потоке
 bill.loc_book - таблица с книгой счетов местной связи
+bill.loc_book_s - таблица с книгой счетов местной связи по номерам в потоке (еще нет)
 -
 customers.Cust.tid_l - код тарифа расчёта местной связи -> tarrif.loc_tariff.tid
 """
@@ -54,6 +57,170 @@ def execute(cursor, sql, save_db=True):
         return cursor.rowcount
     else:
         return 0
+
+
+def get_last_account(cursor, table, field='account'):
+    """
+    Возвращает последний номер счёта account
+    :param cursor: курсор
+    :param table: таблица
+    :param field: название поля у которого вычисляем последний номер
+    :return: последний account
+    """
+    sql = "SELECT max(`{field}`) FROM {table}".format(field=field, table=table)
+    cursor.execute(sql)
+    max_number = cursor.fetchone()[0]
+    if not max_number:
+        max_number = 0
+
+    return max_number
+
+
+class StreamItem(object):
+    """ Данные тарификации клиента для номеров в потоке """
+    def __init__(self, cid, lines, freemin, prev, reg, period_on, period_off):
+        self.cid = cid          # код cid (customers.CustID)
+        self.lines = lines      # кол-во линий
+        self.freemin = freemin  # бесплатных минут на 1 линию
+        self.prev = prev        # плата за 1 минуту  превышения
+        self.reg = reg          # шаблон(ы) через запятую на отбор номеров  из таблицы из поля fm3
+        self.period_on = period_on  # период начала рассчета местных связей по потоку
+        self.period_off = period_off    # период окончания рассчета местных связей по потоку
+
+
+class Stream(object):
+    """
+    Тарифы по клиентам для номеров в потоке, элементы мапы: объекты StreamItem
+    """
+    def __init__(self, dsn_tar, dsn_stream, dsn_bill, table_stream_tar, table_stream, table_bill, period):
+        """
+        :param dsn_tar: dsn тарифов номеров в потоке
+        :param dsn_stream: dsn результатов по номерам в потоке
+        :param dsn_bill: dsn данных разговров
+        :param table_stream_tar: таблица с тарифами
+        :param table_stream: таблица для результата
+        :param table_bill: таблица c данными вызовов
+        :param period: период, 2021_01
+        """
+        self.dsn_tar = dsn_tar
+        self.dsn_stream = dsn_stream
+        self.dsn_bill = dsn_bill
+        self.table_stream = table_stream
+        self.table_stream_tar = table_stream_tar
+        self.table_bill = table_bill    # Y2021M01
+        self.period = period            # 2021_01
+        self._cid2tar = dict()          # мапа соответствия cid->{lines, freemin, prev, ..}
+        self._customers = self._prepare_tariff_and_customers(period)
+
+    def _prepare_tariff_and_customers(self, period):
+        """
+        1) Создание словаря тарифов для номеров в потоке self.cid2tar
+        2) Возвращает список клиентов, участвующих в вычислении по потоку
+        """
+        db = MySQLdb.Connect(**self.dsn_tar)
+        cursor = db.cursor()
+
+        # 1) Создание словаря тарифов
+        sql = "SELECT `cid`, `lines`, `freemin`, `prev`, `reg`, `period_on`, `period_off` FROM {table}".\
+            format(table=self.table_stream_tar)
+
+        cursor.execute(sql)
+        for line in cursor:
+            cid, lines, freemin, prev, reg, period_on, period_off = line
+            self._cid2tar[cid] = StreamItem(cid, lines, freemin, prev, reg, period_on, period_off)
+
+        # 2) Создание списка клиентов, участвующих в вычислении по потоку по периоду
+        sql = "SELECT cid FROM {table} WHERE '{period}' BETWEEN `period_on` AND `period_off` ORDER BY cid".\
+            format(table=self.table_stream_tar, period=period)
+
+        cid_list = []
+        cursor.execute(sql)
+
+        for cid in cursor:
+            cid_list.append(cid[0])
+
+        cursor.close()
+        db.close()
+
+        return cid_list
+
+    def get_tar(self, cid):
+        """
+        Возвращает инфо по тарифу(словарь) для клиента cid
+        :param cid: код клиента
+        :return: словарь с информацией StreamItem по тарифам для клиента с кодом cid
+        """
+        return self._cid2tar.get(cid, {})
+
+    def print(self):
+        """
+        Печать тарифов для номеров в потоке
+        :return:
+        """
+        cids = list(self._cid2tar.keys())
+        cids.sort()
+        print(cids)
+        for cid in cids:
+            tar = self.get_tar(cid)
+            rlike = self.get_sql_rlike('fm3', tar.reg)
+            print("{cid}->{freemin} freemin, '{reg}' reg, rlike:{rlike}".
+                  format(cid=cid, freemin=tar.freemin, reg=tar.reg, rlike=rlike))
+
+    def get_sql_rlike(self, field, template):
+        """
+        Возвращает строку SQL RLIKE для вычисления номеров в потоке
+        :param field: поле по которому фильтруем
+        :param template: шаблон(ы) в виде списка через запятую '[0-9]{3},8120[0-9]{3}'
+        :return: примерно следующее: "`fm3` RLIKE '[0-9]{3}' OR `fm3` RLIKE '8120[0-9]{3}"
+        """
+        sql = []
+        template_list = template.split(',')
+        for tpl in template_list:
+            sql.append("`{field}` RLIKE '{tpl}'".format(field=field, tpl=tpl))
+        return ' OR '.join(sql)
+
+    def save_data_stream(self, period):
+        """
+        :param period: период, например, 2021_01
+        Сохранение данных по потоку за период period в loc_stream
+        :return: киличество сохранённых строк
+        """
+        db = MySQLdb.Connect(**self.dsn_stream)
+        cursor = db.cursor()
+        field = 'fm3'
+
+        # удаление записей из stream за period если они там есть
+        sql = "DELETE FROM {table} WHERE period='{period}'".format(table=self.table_stream, period=period)
+        r = execute(cursor, sql)
+        xlog('stream: deleted {records} records from {table} for {period}'.
+             format(records=r, table=self.table_stream, period=period))
+
+        account = get_last_account(cursor=cursor, table=self.table_stream)
+        records = 0
+
+        for cid in self._customers:
+            tar = self.get_tar(cid)
+            rlike = self.get_sql_rlike(field, tar.reg)
+            sql = "SELECT {field} number, sum(min) AS sum_min FROM {table} WHERE (cid={cid} AND stp='+') " \
+                  "GROUP BY {field} HAVING ({rlike})".format(field=field, table=self.table_bill, cid=cid,
+                                                             rlike=rlike)
+
+            cursor.execute(sql)
+
+            for line in cursor:
+                number, sum_min = line
+                account += 1
+                sql = "INSERT INTO {table} (`account`, `cid`, `period`, `number`, `min`) " \
+                      "VALUES('{account}', '{cid}', '{period}', '{number}', '{min}')".\
+                    format(table=self.table_stream, account=account, cid=cid, period=self.period,
+                           number=number, min=sum_min)
+                # print(sql)
+                records += execute(cursor, sql)
+
+        xlog('stream: insert {records} records in table {table} for {period}'.
+             format(records=records, table=self.table_stream, period=period))
+
+
 
 
 def set_local_tariff_for_customers(dsn):
@@ -183,7 +350,7 @@ class BillingLocal(object):
 
     def _delete_if_exist(self, dsn):
         """
-        Удаление записей из loc_book и loc_results за период если они там есть
+        Удаление записей из loc_book и loc_numbers за период если они там есть
         :param dsn:
         :return:
         """
@@ -194,7 +361,7 @@ class BillingLocal(object):
         requests.append("DELETE FROM {table} WHERE period='{period}'".
                         format(table=self.opts.table_book, period=self.opts.period))
         requests.append("DELETE FROM {table} WHERE period='{period}'".
-                        format(table=self.opts.table_results, period=self.opts.period))
+                        format(table=self.opts.table_numbers, period=self.opts.period))
 
         for sql in requests:
             records = execute(cursor, sql)
@@ -246,7 +413,7 @@ class BillingLocal(object):
 
     def _calc_results(self, cursor, cid_list):
         """
-        По каждому клиенту из списка cid_list определяем возможное превышение и сохраняем его в loc_results
+        По каждому клиенту из списка cid_list определяем возможное превышение и сохраняем его в loc_numbers
         :param cursor: курсор на таблицу с данными (Y2021M11)
         :param cid_list: список клиентов (223,56,300,...)
         :return: true | false - было ли превышение хоть у одного клиента
@@ -286,13 +453,13 @@ class BillingLocal(object):
 
         bar.go_new_line()
         xlog("saved '{customers}/{records}/{sum_overrun}' (customers/records/summa) in table: {table}".
-             format(customers=step_cust, records=step_records, sum_overrun=sum_overrun, table=self.opts.table_results))
+             format(customers=step_cust, records=step_records, sum_overrun=sum_overrun, table=self.opts.table_numbers))
 
         return step_records > 0
 
     def _save_result(self, cursor, period, cid, number, sum_min, abmin, cost1min):
         """
-        Сохранение результата местной связи в loc_results
+        Сохранение результата местной связи в loc_numbers
         :param cursor: курсор на базу с данными
         :param period: период, 2021_01
         :param cid: код клиента
@@ -307,7 +474,7 @@ class BillingLocal(object):
 
         sql = "INSERT INTO {table} (`cid`, `period`, `number`, `min`, `abmin`, `cost1min`, `sum`) " \
               "VALUES ('{cid}', '{period}', '{number}', '{min}' ,'{abmin}', '{cost1min}', '{sum}')".\
-            format(table=self.opts.table_results, cid=cid, period=period, number=number, min=sum_min, abmin=abmin,
+            format(table=self.opts.table_numbers, cid=cid, period=period, number=number, min=sum_min, abmin=abmin,
                    cost1min=cost1min, sum=sum_overrun)
 
         execute(cursor, sql)
@@ -316,7 +483,7 @@ class BillingLocal(object):
 
     def _calc_book(self, cursor):
         """
-        Из таблицы с данными по номерам (loc_results) создаёт итоги в таблице loc_book
+        Из таблицы с данными по номерам (loc_numbers) создаёт итоги в таблице loc_book
         :param cursor: курсор
         :return: общая сумма превышения
         """
@@ -324,7 +491,7 @@ class BillingLocal(object):
         date = utils.sqldate(datetime.date(datetime.now()))
 
         sql = "SELECT cid, sum(sum) sum_sum FROM {table} WHERE period='{period}' GROUP BY cid".\
-            format(table=self.opts.table_results, period=self.opts.period)
+            format(table=self.opts.table_numbers, period=self.opts.period)
         cursor.execute(sql)
 
         total_summa = 0.0
@@ -453,35 +620,35 @@ class BillingLocal(object):
         self._set_number_local(cursor)
 
         # сохранение в мапе отношения tid->{abmin, cost1min}
-        self._read_local_tar(dsn=dsn_tar, table=self.opts.table_tariff)
+        self._read_local_tar(dsn=dsn_tar, table=self.opts.table_numbers_tar)
 
         # сохранение в мапе отношения cid->tid для местной связи
         self._read_local_tar_by_customer(dsn=dsn_cust, table=self.opts.table_customers)
 
-        # если за период расчёт уже был, то удаляем записи из loc_results и loc_book
+        # если за период расчёт уже был, то удаляем записи из loc_numbers и loc_book
         self._delete_if_exist(dsn=dsn_bill)
 
         # маркируем местные вызовы (stp='+')
         self._marked_local_calls(cursor)
 
         # клиенты, у которых местная связь считается по потоку, в расчёте по номерам не учавствуют
-        stream_cid_list = self._get_stream_customers(dsn=dsn_tar, table=self.opts.table_stream)
+        stream_cid_list = self._get_stream_customers(dsn=dsn_tar, table=self.opts.table_stream_tar)
 
         # получаем список потенциальных клиентов для местного биллинга (исключаем тех у которых номера в потоке)
         cid_list = self._get_cust_for_billing(cursor, stream_cid_list)
 
-        # по каждому клиенту - если есть превышение, то записываем в таблицу loc_results и итоги в loc_book
+        # по каждому клиенту - если есть превышение, то записываем в таблицу loc_numbers и итоги в loc_book
         if self._calc_results(cursor, cid_list):
             total = self._calc_book(cursor)
             xlog("total='{total}\u20BD' in table: {table}".format(total=total, table=self.opts.table_book))
 
-        # синхронизация таблиц loc_results и loc_book по полю account
-        sql = "UPDATE {table_book} b JOIN {table_results} r ON b.cid=r.cid SET r.account=b.account " \
-              "WHERE b.period=r.period".format(table_book=self.opts.table_book, table_results=self.opts.table_results)
+        # синхронизация таблиц loc_numbers и loc_book по полю account
+        sql = "UPDATE {table_book} b JOIN {loc_numbers} r ON b.cid=r.cid SET r.account=b.account " \
+              "WHERE b.period=r.period".format(table_book=self.opts.table_book, loc_numbers=self.opts.table_numbers)
         records = execute(cursor, sql)
 
-        xlog("updated {records} records on the field 'account' in table: {table_results}".
-             format(records=records, table_results=self.opts.table_results))
+        xlog("updated {records} records on the field 'account' in table: {loc_numbers}".
+             format(records=records, loc_numbers=self.opts.table_numbers))
 
         cursor.close()
         db.close()
@@ -513,11 +680,16 @@ if __name__ == '__main__':
 
     opt.table_bill = 'Y{year:04d}M{month:02d}'.format(year=int(opt.year), month=int(opt.month))     # Y2021M01
     opt.period = '{year:04d}_{month:02d}'.format(year=int(opt.year), month=int(opt.month))          # 2021_01
-    opt.table_tariff = 'tarif.loc_tariff'
-    opt.table_stream = 'tarif.loc_stream'
-    opt.table_results = 'bill.loc_results'
+
+    opt.table_numbers_tar = 'tarif.loc_numbers_tar'
+    opt.table_stream_tar = 'tarif.loc_stream_tar'
+    opt.table_numbers = 'bill.loc_numbers'
+    opt.table_stream = 'bill.loc_stream'
     opt.table_book = 'bill.loc_book'
     opt.table_customers = 'customers.Cust'
+    #
+
+
 
     logging.basicConfig(
         filename=opt.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
@@ -525,6 +697,13 @@ if __name__ == '__main__':
 
     try:
         # set_local_tariff_for_customers(cfg.dsn_cust2)     # one time for set customers.Cust.tid_l
+
+        stream = Stream(dsn_tar=cfg.dsn_tar, dsn_stream=cfg.dsn_bill, dsn_bill=cfg.dsn_bill,
+                        table_stream_tar=opt.table_stream_tar, table_stream=opt.table_stream,
+                        table_bill=opt.table_bill, period=opt.period)
+
+        stream.save_data_stream(opt.period)
+        exit(1)
 
         local = BillingLocal(opt)
         local.bill(dsn_bill=cfg.dsn_bill, dsn_tar=cfg.dsn_tar, dsn_cust=cfg.dsn_cust, info='')

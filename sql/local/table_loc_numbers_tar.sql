@@ -8,4 +8,4 @@ CREATE TABLE `_TABLE_CREATE_` (
   `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'штамп добавления/изменения записи',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_tar_id` (`tid`)
-) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COMMENT='Тарифные планы местной связи (loc_tariff)';
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COMMENT='Тарифные планы местной связи по номерам (loc_numbers_tar)';
