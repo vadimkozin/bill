@@ -5,6 +5,7 @@ import datetime
 import calendar
 import MySQLdb
 from io import open
+import subprocess
 from modules import cfg
 from fnmatch import fnmatch
 from modules.diskwalk_api import diskwalk
@@ -125,6 +126,38 @@ def create_table(dsn, filename, table):
     cur.execute(sql)
     cur.close()
     db.close()
+
+
+def create_table_if_no_exist(dsn, table, tab_template):
+    """
+    create table if one not exists
+    :param dsn: dsn
+    :param table: создаваемая таблица
+    :param tab_template: шаблон создания таблицы (sql-запрос в файле)
+    """
+    db = MySQLdb.Connect(**dsn)
+    cursor = db.cursor()
+
+    created = False
+
+    if not if_exist_table(cursor, table):
+        f = open(tab_template)
+        sql = f.read().replace('_TABLE_CREATE_', table)
+        f.close()
+        cursor.execute(sql)
+        if if_exist_table(cursor, table):
+            created = True
+
+    cursor.close()
+    db.close()
+    return ('', table)[created]
+
+
+def if_exist_table(cursor, table):
+    sql = "SHOW TABLES LIKE '{table}'".format(table=table)
+    cursor.execute(sql)
+
+    return (False, True)[cursor.rowcount];
 
 
 def getlastid(cursor, table, year, month, field='id'):
@@ -291,3 +324,11 @@ def nds2(val, ndigits=2):
     """
     # nds_from_number = number * 20/120;  cfg.ndskoff=0.20
     return rnd(val*cfg.ndskoff/(1+cfg.ndskoff), ndigits)
+
+
+def get_file_rows(filename):
+    """ return count rows of file """
+    cmd = "wc -l {file}".format(file=filename)
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=open('/dev/null'))
+    out = p.stdout.read()
+    return int(out.strip().split()[0])

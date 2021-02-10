@@ -27,9 +27,24 @@ from datetime import datetime
 from modules import cfg
 from modules import utils
 from modules.progressbar import Progressbar
+import ini
 
 root = os.path.realpath(os.path.dirname(sys.argv[0]))
 flog = "{root}/log/{file}".format(root=root, file='local.log')
+shema = "{root}/sql/local".format(root=root)
+
+
+def get_path(file, prefix=shema):
+    return '{prefix}/{file}'.format(prefix=prefix, file=file)
+
+
+local_tables = [
+    {'dsn': cfg.dsn_bill, 'table': 'loc_book', 'shema': get_path('table_loc_book.sql')},
+    {'dsn': cfg.dsn_bill, 'table': 'loc_numbers', 'shema': get_path('table_loc_numbers.sql')},
+    {'dsn': cfg.dsn_bill, 'table': 'loc_stream', 'shema': get_path('table_loc_stream.sql')},
+    # {'dsn': cfg.dsn_tar, 'table': 'loc_numbers_tar', 'shema': get_path('table_loc_numbers_tar')},
+    # {'dsn': cfg.dsn_tar, 'table': 'loc_stream_tar', 'shema': get_path('table_loc_stream_tar')},
+]
 
 
 def xlog(msg, out_console=True):
@@ -57,6 +72,13 @@ def execute(cursor, sql, save_db=True):
         return cursor.rowcount
     else:
         return 0
+
+
+def create_tables(tables):
+    for d in tables:
+        table = utils.create_table_if_no_exist(dsn=d['dsn'], table=d['table'], tab_template=d['shema'])
+        if table:
+            xlog("created table: '{table}'".format(table=table))
 
 
 def get_last_account(cursor, table, field='account'):
@@ -181,8 +203,8 @@ class Stream(object):
 
     def save_data_stream(self, period):
         """
-        :param period: период, например, 2021_01
         Сохранение данных по потоку за период period в loc_stream
+        :param period: период, например, 2021_01
         :return: киличество сохранённых строк
         """
         db = MySQLdb.Connect(**self.dsn_stream)
@@ -219,8 +241,6 @@ class Stream(object):
 
         xlog('stream: insert {records} records in table {table} for {period}'.
              format(records=records, table=self.table_stream, period=period))
-
-
 
 
 def set_local_tariff_for_customers(dsn):
@@ -659,8 +679,6 @@ class BillingLocal(object):
         t2 = time.time()
         xlog("work: {0:0.2f} sec".format(t2 - t1))
 
-        xlog('.')
-
 
 if __name__ == '__main__':
     p = optparse.OptionParser(description="billing of local calls ",
@@ -671,8 +689,10 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
 
     opt, args = p.parse_args()
-    opt.year = '2020'
-    opt.month = '12'
+    # opt.year = '2021'
+    # opt.month = '1'
+    opt.year = ini.year
+    opt.month = ini.month
 
     if not opt.year or not opt.month or not opt.log:
         print(p.print_help())
@@ -687,9 +707,6 @@ if __name__ == '__main__':
     opt.table_stream = 'bill.loc_stream'
     opt.table_book = 'bill.loc_book'
     opt.table_customers = 'customers.Cust'
-    #
-
-
 
     logging.basicConfig(
         filename=opt.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
@@ -698,15 +715,21 @@ if __name__ == '__main__':
     try:
         # set_local_tariff_for_customers(cfg.dsn_cust2)     # one time for set customers.Cust.tid_l
 
+        # create local tables if no exists
+        create_tables(tables=local_tables)
+
+        # local by numbers
+        local = BillingLocal(opt)
+        local.bill(dsn_bill=cfg.dsn_bill, dsn_tar=cfg.dsn_tar, dsn_cust=cfg.dsn_cust, info='')
+
+        # local by stream
         stream = Stream(dsn_tar=cfg.dsn_tar, dsn_stream=cfg.dsn_bill, dsn_bill=cfg.dsn_bill,
                         table_stream_tar=opt.table_stream_tar, table_stream=opt.table_stream,
                         table_bill=opt.table_bill, period=opt.period)
 
         stream.save_data_stream(opt.period)
-        exit(1)
 
-        local = BillingLocal(opt)
-        local.bill(dsn_bill=cfg.dsn_bill, dsn_tar=cfg.dsn_tar, dsn_cust=cfg.dsn_cust, info='')
+        xlog('.')
 
     except MySQLdb.Error as e:
         log.exception(str(e))

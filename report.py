@@ -27,6 +27,7 @@ from io import open
 from modules import cfg
 from modules import utils as ut
 from modules import customers
+import ini
 
 root = os.path.realpath(os.path.dirname(sys.argv[0]))
 pathsql = "{root}/sql/reports/".format(root=root)   # файлы sql-команд для создания таблиц
@@ -740,7 +741,9 @@ class Book(object):
         date = datesf = period2           # 20151130
         datept = dateopl = ut.sqldate(datetime.date(9999, 11, 11))   # 99991111
         sumopl, sumbook, fperiod, fbreak = (0, 0, True, False)
-        kat_id, fx, rash_id, title_id = ('TLF', '*', 60, 19)    # 60 с 01-10-2017
+        # kat_id, fx, rash_id, title_id = ('TLF', '*', 60, 19)      # 60 с 01-10-2017 (RSS)
+        kat_id, fx, rash_id, title_id = ('TLF', '*', 61, 19)        # 61 с 01-01-2021 (A2)
+
         unit, amount = ('q', 1)
 
         account = ut.get_last_account(cursor, table=tab_book, year=opts.year)  # последний номер счёта
@@ -1026,7 +1029,10 @@ class OperatorDataRss(OperatorData):
         tab1 = cfg.operator[oper]['tab1']       # rss - исходная итоговая таблица
         cds = Codemts(dsn=cfg.dsn_tar, table='komstarCode')     # cds['Австрия'] => 43
 
+        filename2 = '_2.'.join(filename.split('.'))  # файл без НДС (всего 8 полей) - в регламенте формат2
         f = open(filename, "wt", encoding='utf8')
+        f2 = open(filename2, "wt", encoding='utf8')
+
         sql = "SELECT `serv`, `dir`, sum(`sumraw`) `sumraw`, sum(`summin`) `summin` FROM `{table}` " \
               "WHERE `year`='{year}' AND `month`='{month}' GROUP BY `serv`, `dir`".format(
             table=tab1, year=opts.year, month=opts.month
@@ -1054,7 +1060,15 @@ class OperatorDataRss(OperatorData):
                 account=cfg.operator[oper]['account']
             )
             f.write(st + '\n')
+
+            st = "{year};{month};{serv};{dir};{code};{min};{sum};{account}".format(
+                year=opts.year, month=opts.month, serv=serv, dir=dir, code=code, min=summin, sum=sumraw,
+                account=cfg.operator[oper]['account']
+            )
+            f2.write(st + '\n')
+
         f.close()
+        f2.close()
         result.sum, result.nds, result.vsego = (ut.rnd(sum_sum), ut.rnd(sum_nds), ut.rnd(sum_vsego))
         return result.sum, result.nds, result.vsego
 
@@ -1380,8 +1394,11 @@ class OperatorDataInf(OperatorData):
         serv2files = dict(VZ="'VZ'", MG="'MG','MN'")
         cds = Codemts(dsn=cfg.dsn_tar, table='komstarCode')     # cds['Австрия'] => 43
 
-
         f = open(filename, "wt", encoding='utf8')
+
+        filename2 = filename + '2'  # без НДС, всего 8 полей (формат 2 по регламенту)
+        f2 = open(filename2, "wt", encoding='utf8')
+
         sql = "SELECT `serv`, `dir`, sum(`sumraw`) `sumraw`, sum(`summin`) `summin` FROM `{table}` " \
               "WHERE `year`='{year}' AND `month`='{month}' AND `serv` IN ({serv}) GROUP BY `serv`, `dir`".\
             format(table=tab1, year=year, month=month, serv=serv2files[serv])
@@ -1408,7 +1425,15 @@ class OperatorDataInf(OperatorData):
                 account=cfg.operator[oper]['account']
             )
             f.write(st + '\n')
+
+            st = "{year};{month};{serv};{dir};{code};{min};{sum};{account}".format(
+                year=year, month=month, serv=serv, dir=dir, code=code, min=summin, sum=sumraw,
+                account=cfg.operator[oper]['account']
+            )
+            f2.write(st + '\n')
+
         f.close()
+        f2.close()
         result.sum, result.nds, result.vsego = (ut.rnd(sum_sum), ut.rnd(sum_nds), ut.rnd(sum_vsego))
         return result.sum, result.nds, result.vsego
 
@@ -1568,7 +1593,8 @@ if __name__ == '__main__':
     opts, args = p.parse_args()
     opts.log = flog
 
-    opts.table = 'Y2020M12'
+    # opts.table = 'Y2021M01'
+    opts.table = ini.table
     opts.year, opts.month = ut.period2year_month(opts.table)
     opts.file_tab1 = "{path}{file}".format(path=pathsql, file='tab_tab1.sql')
     opts.file_tab_book = "{path}{file}".format(path=pathsql, file='tab_book.sql')

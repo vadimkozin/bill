@@ -30,6 +30,7 @@ from modules import calendar         # производственный кале
 from modules import calc             # функции для вычислений НДС и пр.
 from modules.func import Func        # разные функции
 from modules.progressbar import Progressbar     # прогресс-бар
+import ini
 
 root = os.path.realpath(os.path.dirname(sys.argv[0]))
 flog = "{root}/log/{file}".format(root=root, file='bill.log')
@@ -267,7 +268,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/bill.log', help='logfile')
 
     opt, args = p.parse_args()
-    opt.table = 'Y2020M12'
+    opt.table = ini.table   # Y2021M01
 
     opt.log = flog
     opt.filenoexistnumber = 'log/nonum.txt'   # сбор номеров необх. для биллинга но их нет в тел_базе
@@ -278,9 +279,9 @@ if __name__ == '__main__':
 
     logging.basicConfig(
         filename=opt.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
+    log: Logger = logging.getLogger('app')
 
     try:
-        log: Logger = logging.getLogger('app')
         bill = Billing(opt)
 
         bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="id>0")
