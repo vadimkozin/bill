@@ -27,11 +27,14 @@ from io import open
 from modules import cfg
 from modules import utils as ut
 from modules import customers
+from modules import xlsreports
 import ini
 
 root = os.path.realpath(os.path.dirname(sys.argv[0]))
 pathsql = "{root}/sql/reports/".format(root=root)   # файлы sql-команд для создания таблиц
 pathreports = "{root}/reports/".format(root=root)   # файлы для выгрузки оператору МТС (utf-8)
+path_results = "{root}/results".format(root=root)   # файлы с результатом по МГ/ВЗ (utf-8) для выст_счетов
+
 flog = "{root}/log/{file}".format(root=root, file='report.log')     # лог-файл
 stat2service = {'M': 'MG', 'S': 'MG', 'W': 'MN', 'Z': 'VZ'}         # мапа stat -> service
 
@@ -211,6 +214,7 @@ class AtomSumDir(object):
         self.mn.summin = summin
         self.mn.calls = calls
 
+
 """
 sd = AtomSumDir(999, 'u')
 sd.setvz(1, 2, 3, 4, 5)
@@ -282,6 +286,7 @@ class FirstStep(object):
         cursor.execute(sql)
         print(sql)
         step = 0
+        summin = 0
         for line in cursor:
             if line[0] is None:
                 break
@@ -350,7 +355,8 @@ class FirstStep(object):
                 a.setvz(sumraw, sumcust, sumoper, sumsec, summin, sumcalls)
 
             self.firstks[pid] = a
-        log.info("fill data struct: {records} records for oper '{oper}'(f)".format(records=len(self.firstks), oper=oper))
+        log.info("fill data struct: {records} records for oper '{oper}'(f)".
+                 format(records=len(self.firstks), oper=oper))
 
     def print_info_customers(self):
         """ Печать данных по клиентам для отладки """
@@ -360,9 +366,9 @@ class FirstStep(object):
         for cid in custs:
             a = self.first[cid]
             for q in (a.mg, a.mn, a.vz):
-                print("{cid} {uf} {serv}: {sumraw} {sumcust} {sumoper} {sumsec} {summin} (raw/cust/oper sec/min)".\
-                    format(cid=a.cid, uf=a.uf, serv=q.serv, sumraw=q.sumraw, sumcust=q.sumcust, sumoper=q.sumoper,
-                           sumsec=q.sumsec, summin=q.summin))
+                print("{cid} {uf} {serv}: {sumraw} {sumcust} {sumoper} {sumsec} {summin} (raw/cust/oper sec/min)".
+                      format(cid=a.cid, uf=a.uf, serv=q.serv, sumraw=q.sumraw, sumcust=q.sumcust, sumoper=q.sumoper,
+                             sumsec=q.sumsec, summin=q.summin))
         print("itogo: {items} items".format(items=len(self.first)))
 
     def print_info_custks(self):
@@ -373,9 +379,9 @@ class FirstStep(object):
         for cid in custs:
             a = self.firstks[cid]
             for q in (a.mg, a.mn, a.vz):
-                print("{cid} {uf} {serv}: {sumraw} {sumcust} {sumoper} {sumsec} {summin} (raw/cust/oper sec/min)".\
-                    format(cid=a.cid, uf=a.uf, serv=q.serv, sumraw=q.sumraw, sumcust=q.sumcust, sumoper=q.sumoper,
-                           sumsec=q.sumsec, summin=q.summin))
+                print("{cid} {uf} {serv}: {sumraw} {sumcust} {sumoper} {sumsec} {summin} (raw/cust/oper sec/min)".
+                      format(cid=a.cid, uf=a.uf, serv=q.serv, sumraw=q.sumraw, sumcust=q.sumcust, sumoper=q.sumoper,
+                             sumsec=q.sumsec, summin=q.summin))
         print("itogo_ks: {items} items".format(items=len(self.firstks)))
 
 
@@ -422,7 +428,7 @@ class Book(object):
             sum, nds, vsego = self.create_book_ks_rss(oper, tab_bookf, tab_servf)
             return sum, nds, vsego
 
-        if oper == 'q'  : data = self.first; custom = self.cust
+        if oper == 'q': data = self.first; custom = self.cust
         elif oper == 'm': data = self.firstks; custom = self.custks
 
         cursor = self.cur
@@ -721,7 +727,6 @@ class Book(object):
         tab_servf = cfg.operator[oper]['servf']     # rss_servf - физлица подробно по напр. для rss-bookf
         tab_akt = cfg.operator[oper]['akt']         # rss_akt - акт сдачи-приёмки
 
-
         # Если таблицы не существует, то создаём её
         prepare_table(dsn=self.dsn, file_sql=file_tab_book, table=tab_book, year=opts.year, month=opts.month,
                       delete_period=delete_period)
@@ -922,8 +927,7 @@ class OperatorDataRss(OperatorData):
                        abonent=abonent, inn=inn, kpp=kpp, dataopl='', vsego=vsego,
                        sum20=sum, nds20=nds,
                        sum18='', nds18='',
-                       sum10='', nds10='', sum0='', free='', prefix=cfg.operator[oper]['prefix']
-                )
+                       sum10='', nds10='', sum0='', free='', prefix=cfg.operator[oper]['prefix'])
             f.write(st + '\n')
 
         f.close()
@@ -1583,6 +1587,10 @@ class Codemts(object):
         print("всего : {size} направлений".format(size=self.size))
 
 
+        # sql = cfg.sqls['free800'].format(tableYYYYMM=table_data, minsec=cfg.calc['minsec'], operator=oper)
+        # cursor.execute(sql)
+
+
 if __name__ == '__main__':
     p = optparse.OptionParser(description="Billing.telefon.reports - create reports for operator MTS",
                               prog="reports.py", version="0.1a", usage="reports.py --tab=table [--log=namefile]")
@@ -1605,6 +1613,11 @@ if __name__ == '__main__':
     if not opts.table or not opts.log:
         print(p.print_help())
         exit(1)
+
+    xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results)
+    xls.create_file()
+
+    exit(1)
 
 try:
     logging.basicConfig(
