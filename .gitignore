@@ -278,3 +278,9 @@ dmypy.json
 ######
 modules/cfg.py
 tmp/
+results/
+log/
+reports/
+a2/
+
+

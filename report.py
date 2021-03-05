@@ -1601,7 +1601,6 @@ if __name__ == '__main__':
     opts, args = p.parse_args()
     opts.log = flog
 
-    # opts.table = 'Y2021M01'
     opts.table = ini.table
     opts.year, opts.month = ut.period2year_month(opts.table)
     opts.file_tab1 = "{path}{file}".format(path=pathsql, file='tab_tab1.sql')
@@ -1616,7 +1615,6 @@ if __name__ == '__main__':
 
     xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results)
     xls.create_file()
-
     exit(1)
 
 try:
@@ -1685,7 +1683,13 @@ try:
 
         ut.copy_files_new_charset(path1=path_files, path2=path_cp1251, ext='csv', code1='utf8', code2='cp1251')
 
-    log.info('.')
+    log.info('..')
+
+    log.info('reports in xls..')
+    # update rss_bookf b JOIN customers.CustKS ks ON b.pid=ks.pid SET b.xcid=ks.cid where b.period='Y2021_02';
+    # xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results)
+    # xls.create_file()
+    # log.info('.')
 
 
 except MySQLdb.Error as e:

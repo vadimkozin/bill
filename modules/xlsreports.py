@@ -581,7 +581,7 @@ class BillReportXls(object):
         row += 1
         row += 1
 
-        ws.write(row, col, 'Инициирование вызовов по агенсскому договору', frm.default)
+        ws.write(row, col, 'Инициирование вызовов по агентскому договору', frm.default)
         ws.write(row, col+1, iv_d_agent, frm.default)
         ws.write(row, col+2, 'мин.', frm.default_center)
         row += 1

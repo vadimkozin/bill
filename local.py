@@ -689,8 +689,6 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
 
     opt, args = p.parse_args()
-    # opt.year = '2021'
-    # opt.month = '1'
     opt.year = ini.year
     opt.month = ini.month
 
@@ -698,8 +696,8 @@ if __name__ == '__main__':
         print(p.print_help())
         exit(1)
 
-    opt.table_bill = 'Y{year:04d}M{month:02d}'.format(year=int(opt.year), month=int(opt.month))     # Y2021M01
-    opt.period = '{year:04d}_{month:02d}'.format(year=int(opt.year), month=int(opt.month))          # 2021_01
+    opt.table_bill = 'Y{year:04d}M{month:02d}'.format(year=int(opt.year), month=int(opt.month))     # Y2021M02
+    opt.period = '{year:04d}_{month:02d}'.format(year=int(opt.year), month=int(opt.month))          # 2021_02
 
     opt.table_numbers_tar = 'tarif.loc_numbers_tar'
     opt.table_stream_tar = 'tarif.loc_stream_tar'

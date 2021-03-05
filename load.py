@@ -86,6 +86,7 @@ import re
 from modules import cfg              # конфиг
 from modules import codedef          # коды СПС
 from modules.progressbar import Progressbar     # прогресс-бар
+import ini
 
 # log = 0  # handle log
 root = os.path.realpath(os.path.dirname(sys.argv[0]))
@@ -2009,7 +2010,8 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/load.log', help='logfile')
 
     opts, args = p.parse_args()
-    opts.table = 'Y2021M01'
+    # opts.table = 'Y2021M02'
+    opts.table = ini.table  # Y2021M02
     opts.log = flog
 
     if not opts.table or not opts.log:
