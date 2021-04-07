@@ -1590,6 +1590,28 @@ class Codemts(object):
         # sql = cfg.sqls['free800'].format(tableYYYYMM=table_data, minsec=cfg.calc['minsec'], operator=oper)
         # cursor.execute(sql)
 
+def update_rss_bookf(dsn, period):
+    """
+    Обновление таблицы bill.rss_bookf перед формирование результатов за период (result)
+    :param dsn: DSN
+    :param period: период напр. 2021_03
+    :return: количество обновлённых записей
+    """
+    db = MySQLdb.connect(**dsn)
+    cursor = db.cursor()
+
+    sql = "update rss_bookf b JOIN customers.CustKS ks ON b.pid=ks.pid SET b.xcid=ks.cid where b.period='Y{period}'".\
+        format(period=period)
+
+    cursor.execute(sql)
+
+    updated_rows = cursor.rowcount
+
+    cursor.close()
+    db.close()
+
+    return updated_rows
+
 
 if __name__ == '__main__':
     p = optparse.OptionParser(description="Billing.telefon.reports - create reports for operator MTS",
@@ -1613,9 +1635,11 @@ if __name__ == '__main__':
         print(p.print_help())
         exit(1)
 
-    xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results)
-    xls.create_file()
-    exit(1)
+    # update rss_bookf b JOIN customers.CustKS ks ON b.pid=ks.pid SET b.xcid=ks.cid where b.period='Y2021_02';
+    # rows = update_rss_bookf(dsn=cfg.dsn_bill2, period=ini.period)
+    # xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results)
+    # xls.create_file()
+    # exit(1)
 
 try:
     logging.basicConfig(
@@ -1686,10 +1710,11 @@ try:
     log.info('..')
 
     log.info('reports in xls..')
-    # update rss_bookf b JOIN customers.CustKS ks ON b.pid=ks.pid SET b.xcid=ks.cid where b.period='Y2021_02';
-    # xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results)
-    # xls.create_file()
-    # log.info('.')
+    updated_rows = update_rss_bookf(dsn=cfg.dsn_bill2, period=ini.period)
+    log.info('updated {rows} records in bill.rss_bookf'.format(rows=updated_rows))
+    xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results)
+    xls.create_file()
+    log.info('.')
 
 
 except MySQLdb.Error as e:

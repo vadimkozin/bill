@@ -76,8 +76,7 @@ class BillReportXls(object):
         self.month = month
         self.period = '{year:04d}_{month:02d}'.format(year=int(year), month=int(month))  # 2021_01
         self.table = 'Y{year:04d}M{month:02d}'.format(year=int(year), month=int(month))  # Y2021M01
-        self.outfile = "{path}/{period}{suffix}.{ext}".format(path=path, period=self.period, suffix=a2['suffix_file'],
-                                                              ext='xlsx')  # 2021_01_rss.xls
+        self.outfile = "{path}/{period}.{ext}".format(path=path, period=self.period, ext='xlsx')  # 2021_01_rss.xls
 
     @staticmethod
     def create_formats(workbook):

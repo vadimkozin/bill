@@ -696,8 +696,8 @@ if __name__ == '__main__':
         print(p.print_help())
         exit(1)
 
-    opt.table_bill = 'Y{year:04d}M{month:02d}'.format(year=int(opt.year), month=int(opt.month))     # Y2021M02
-    opt.period = '{year:04d}_{month:02d}'.format(year=int(opt.year), month=int(opt.month))          # 2021_02
+    opt.table_bill = 'Y{year:04d}M{month:02d}'.format(year=int(opt.year), month=int(opt.month))     # Y2021M03
+    opt.period = '{year:04d}_{month:02d}'.format(year=int(opt.year), month=int(opt.month))          # 2021_03
 
     opt.table_numbers_tar = 'tarif.loc_numbers_tar'
     opt.table_stream_tar = 'tarif.loc_stream_tar'
