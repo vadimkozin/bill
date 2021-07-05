@@ -268,7 +268,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/bill.log', help='logfile')
 
     opt, args = p.parse_args()
-    opt.table = ini.table   # Y2021M03
+    opt.table = ini.table   # Y2021M06
 
     opt.log = flog
     opt.filenoexistnumber = 'log/nonum.txt'   # сбор номеров необх. для биллинга но их нет в тел_базе
