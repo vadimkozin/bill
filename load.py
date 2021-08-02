@@ -85,6 +85,8 @@ ps.
 2021-06-01 ( 2 rows)
  update smg2.Y2021M06 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
 
+2021-07-01 ( 3 rows)
+update smg2.Y2021M07 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
 """
 import os
 import sys
@@ -2022,7 +2024,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/load.log', help='logfile')
 
     opts, args = p.parse_args()
-    opts.table = ini.table  # Y2021M05
+    opts.table = ini.table  # Y2021M07
     opts.log = flog
 
     if not opts.table or not opts.log:
