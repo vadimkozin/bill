@@ -20,15 +20,26 @@ class Calltype(object):
     sts2stat = dict(mg='M', mn='W', mgs='S', vz='Z', gd='G', vm='V', kz='W', ab='W')    # sts -> stat
     stat2sts = dict(M='mg', W='mn', S='mgs', Z='vz', G='gd', V='vm')            # stat -> sts
 
+    # re_msk = re.compile('^(49[589])')                      # G (gd) (moskva)
+    # re_gd = re.compile('^8(49[589])\d{7,}')                # G (gd)
+    # re_xx = re.compile('^8(80[04])\d{7,}')                 # X (xx) (бесплатный вызов 8800)
+    # re_mg = re.compile('^8([2-8]\d{7,})')                  # M (mn)
+    # re_vm = re.compile('^(811\d{4})')                      # V (vm)
+    # re_mn = re.compile('^810(\d{10,})')                    # W (mn)
+    # re_kz = re.compile('^8(7[01267]\d{8,})')               # W (mn), Казахстан
+    # re_ab = re.compile('^8([89]40\d{7,})')                 # W (mn), Абхазия 7840 & 7940
+    # re_tm = re.compile('^(10[01234])')                     # G (gd) (запрос времени и прочее)
+
     re_msk = re.compile('^(49[589])')                      # G (gd) (moskva)
-    re_gd = re.compile('^8(49[589])\d{7,}')                # G (gd)
-    re_xx = re.compile('^8(80[04])\d{7,}')                 # X (xx) (бесплатный вызов 8800)
-    re_mg = re.compile('^8([2-8]\d{7,})')                  # M (mn)
+    re_gd = re.compile('^(7|8)(49[589])\d{7,}')                # G (gd)
+    re_xx = re.compile('^(7|8)(80[04])\d{7,}')                 # X (xx) (бесплатный вызов 8800)
+    re_mg = re.compile('^(7|8)([2-8]\d{7,})')                  # M (mn)
     re_vm = re.compile('^(811\d{4})')                      # V (vm)
-    re_mn = re.compile('^810(\d{10,})')                    # W (mn)
-    re_kz = re.compile('^8(7[01267]\d{8,})')               # W (mn), Казахстан
-    re_ab = re.compile('^8([89]40\d{7,})')                 # W (mn), Абхазия 7840 & 7940
-    re_tm = re.compile('^(10[01234])')                     # G (gd) (запрос времени и прочее)
+    re_mn = re.compile('^(7|8)10(\d{10,})')                # W (mn)
+    re_kz = re.compile('^(7|8)(7[01267]\d{8,})')               # W (mn), Казахстан
+    re_ab = re.compile('^(7|8)([89]40\d{7,})')                 # W (mn), Абхазия 7840 & 7940
+    re_tm = re.compile('^(10[01234])|(122)')                   # G (gd) (запрос времени и прочее) 122-инфо по коронавирусу
+    re_vz = re.compile('^(7|8)(9\d{9})')                   # Z(vz) (внутризоновая)
 
     def __init__(self, cdef):
         """
@@ -72,7 +83,8 @@ class Calltype(object):
         to = self.__prepare__(to, tox)
         prx, stat = ('', '-')
 
-        if to.startswith('89'):
+        # if to.startswith('89'):
+        if self.re_vz.match(to):
             if self.cdef.is_codevz(to[1:]):    # to[1:7]
                 stat, prx = ('vz', to[1:])     # to[1:7]
             else:
@@ -84,19 +96,19 @@ class Calltype(object):
         if stat == '-':
             m = self.re_gd.match(to)
             if m:
-                stat, prx = ('gd', m.group(1))
+                stat, prx = ('gd', m.group(2))
         if stat == '-':
             m = self.re_mn.match(to)
             if m:
-                stat, prx = ('mn', m.group(1))
+                stat, prx = ('mn', m.group(2))
         if stat == '-':
             m = self.re_kz.match(to)
             if m:
-                stat, prx = ('kz', m.group(1))
+                stat, prx = ('kz', m.group(2))
         if stat == '-':
             m = self.re_ab.match(to)    # 7840 - Абхазия
             if m:
-                stat, prx = ('ab', m.group(1))
+                stat, prx = ('ab', m.group(2))
 
         # if stat == '-':
         #    m = self.re_xx.match(to)
@@ -105,7 +117,7 @@ class Calltype(object):
         if stat == '-':
             m = self.re_mg.match(to)
             if m:
-                stat, prx = ('mg', m.group(1))
+                stat, prx = ('mg', m.group(2))
         if stat == '-':
             m = self.re_vm.match(to)
             if m:

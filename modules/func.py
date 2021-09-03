@@ -148,7 +148,7 @@ class Func(object):
         проверка номера вызываемого абонента
         """
         # 810800xxxxxxx -> 8800xxxxxxx
-        re_800 = re.compile('^810800(\d{7})')
+        re_800 = re.compile('^(7|8)10800(\d{7})')
         tox = to
         m = re_800.match(to)
         if m:
@@ -179,21 +179,32 @@ class Func(object):
         re_8120xxx = re.compile('^8120\d{3}$')
         re_8124xxx = re.compile('^8124\d{3}$')
         re_8125xxx = re.compile('^8125\d{3}$')
+        re_fmx = re.compile('^(7|8)?(495|499)')
+        re_626642 = re.compile('^(626|642)\d{4}')
 
-        is_len_fmx11 = len(fmx) == 11
+        # is_len_fmx11 = len(fmx) == 11 # < 2021_08
+        is_len_fmx10 = len(fmx) == 10   # >= 2021_08
 
-        if not is_len_fmx11:
+        if not is_len_fmx10:
             return '?'
 
         if fm == fmx:
             return fm[-7:]   # 84996428448 84996428448 -> 6428448
-        if re_253xx.match(fm) and fmx.startswith('8499'):
+        if fm[1:] == fmx:
+            return fm[-7:]   # 74996428464 4996428464 -> 6428464
+        if re_626642.match(fm) and re_fmx.match(fmx):
+            return fm        # 6428289 4996428289 -> 6428289
+        # if re_253xx.match(fm) and fmx.startswith('8499'):
+        if re_253xx.match(fm) and re_fmx.match(fmx):
             return fmx[-7:]  # 25331 84996428466 -> 6428466 (cid=58)
-        if re_8120xxx.match(fm) and fmx.startswith('8495'):
+        # if re_8120xxx.match(fm) and fmx.startswith('8495'):
+        if re_8120xxx.match(fm) and re_fmx.match(fmx):
             return fm[-3:]   # 8120101 84956269082 -> 101 (cid=53)
-        if re_8124xxx.match(fm) and fmx.startswith('8495'):
+        # if re_8124xxx.match(fm) and fmx.startswith('8495'):
+        if re_8124xxx.match(fm) and re_fmx.match(fmx):
             return fm[-3:]   # 8124203 84956269696 -> 203 (cid=273)
-        if re_8125xxx.match(fm) and fmx.startswith('8499'):
+        # if re_8125xxx.match(fm) and fmx.startswith('8499'):
+        if re_8125xxx.match(fm) and re_fmx.match(fmx):
             return fm       # 8125207 84996428459 -> 8125207 (cid=58)
 
 

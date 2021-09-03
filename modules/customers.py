@@ -114,8 +114,8 @@ class CustKs(object):
         :return: pid физ-лица
         """
 
-        if len(number) == 11 and number.startswith('8'):
-            number = number[1:]  # 84956261538 -> 4956261538
+        if len(number) == 11 and (number.startswith('8') or number.startswith('7')):
+            number = number[1:]  # (8|7)4956261538 -> 4956261538
         return self.pid_by_number.get(number, 0)
 
     def print_cust(self):

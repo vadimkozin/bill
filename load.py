@@ -87,6 +87,10 @@ ps.
 
 2021-07-01 ( 3 rows)
 update smg2.Y2021M07 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
+
+2021-09-01 ( 38 rows )
+update smg2.Y2021M08 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
+
 """
 import os
 import sys
@@ -566,7 +570,7 @@ class Numbers(object):
         :param num: 8495626xxxx or 626xxxx or 811xxxx or 710xxxx, ...
         :return: CustomerID(cid) or 0
         """
-        if num.startswith('8495') or num.startswith('8499'):
+        if num.startswith('8495') or num.startswith('8499') or num.startswith('7495') or num.startswith('7499'):
             num = num[4:]
         elif num.startswith('499'):
             num = num[3:]
@@ -587,6 +591,7 @@ class Number642Cust58(object):
     """ 642xxxx numbers SevPort(58) """
     numbers = dict()    # {123 => 58, 456 =>58, ...}
     numstr = ''         # 123,456, ...
+
     def __init__(self, numb):
         """
         :param numb: instance Numbers
@@ -605,7 +610,7 @@ class Number642Cust58(object):
         :param num: 8495642xxxx or 642xxxx
         :return: CustomerID(cid) or 0
         """
-        if num.startswith('8495') or num.startswith('8499'):
+        if num.startswith('8495') or num.startswith('8499') or num.startswith('7495') or num.startswith('7499'):
             num = num[4:]
         elif num.startswith('499'):
             num = num[3:]
@@ -668,7 +673,7 @@ class Number626(object):
         :param num: 8495626xxxx or 626xxxx
         :return: CustomerID(cid) or 0
         """
-        if num.startswith('8495'):
+        if num.startswith('8495') or num.startswith('7495'):
             num = num[4:]
 
         return self.numbers.get(num, -1)
@@ -2024,7 +2029,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/load.log', help='logfile')
 
     opts, args = p.parse_args()
-    opts.table = ini.table  # Y2021M07
+    opts.table = ini.table  # Y2021M08
     opts.log = flog
 
     if not opts.table or not opts.log:
@@ -2054,7 +2059,7 @@ try:
     smg2 = Smg642(dsn=cfg.dsn_smg2, bill=bill, table=opts.table, numb=numb, stat=stat)
     # smg2.setstat(where="`f1`='+' AND `dtr` = 'mts' AND `stat`='-'", info='update_stat')
 
-    smg2.add(src_num=('%642____%', '81252__', '8117___', '710%', '627%'), dtr_trank=('mts', 'mrp'), info='smg2.642_MTS', eq='smg2_642q', op='q')  # p=q RSS/MTS:642xxxx    #!smg2.add(src_num=('81_____',), dtr_trank=('bee_rss',), info='smg2.811_BLINE', eq='smg2_811b', op='b')                       # p=b RSS/BEE:642xxxx
+    smg2.add(src_num=('7499642____%', '%642____%', '81252__', '8117___', '710%', '627%'), dtr_trank=('mts', 'mrp'), info='smg2.642_MTS', eq='smg2_642q', op='q')  # p=q RSS/MTS:642xxxx    #!smg2.add(src_num=('81_____',), dtr_trank=('bee_rss',), info='smg2.811_BLINE', eq='smg2_811b', op='b')                       # p=b RSS/BEE:642xxxx
     # RSS/MTS:(627+710)/6428495 - ушло на МТС и закрыто 6428495 (ВПН), но клиентам тоже нужно выставить как от megafon (p=f)
     # op='q' RSS/MTS(642xxxx); (дублируем звонок в базе: RSS/MTS(p=q) - это ВПН и Мегафон (p=f) для клиентов)
     smg2.add2(where="fmx like '%6428495' and (fm like '%627____' or fm like '%710____') and dtr in ('mts','mrp')",
@@ -2084,7 +2089,7 @@ try:
     smg2.add2(where="(fm in ('15824')) and fmx in ('84996428000') and dtr in ('mts','mrp') and sec>0",
               info='smg2.627_MTS', eq='smg2_710f', op='q', p='f', f3='f', p2='#')
 
-    smg2.add(src_num=('8495626%', '626%'), dtr_trank=('mts', 'mrp'), info='smg2.626_MTS', eq='smg2_626q', op='q')  # p=q
+    smg2.add(src_num=('7495626%', '8495626%', '626%'), dtr_trank=('mts', 'mrp'), info='smg2.626_MTS', eq='smg2_626q', op='q')  # p=q
     smg2.add(src_num=('81_____',), dtr_trank=('mts', 'mrp'), info='smg2.811_MTS', eq='smg2_811q', op='q')    # p=q
     # cisco+radius больше нет с Y2017M01 24-25 янв. И трафик с 710/627 пустили через asterisk
     # c asterisk 2 номера 710xxxx Андрей завернул через SMG2. Это местный трафик на пост. номера

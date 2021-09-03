@@ -139,6 +139,9 @@ class BillLocalXls(object):
 
         # счета в итогах
         accounts = [str(it.account) for it in book_list]   # ['2','3',..]
+        if len(accounts) == 0:
+            print('not local calls for billing')
+            return False
 
         # итоги по номерам
         numbers = self._get_numbers(accounts)
@@ -469,5 +472,5 @@ def _get_customers_u(self):
 
 
 if __name__ == '__main__':
-    xls = BillLocalXls(dsn=cfg.dsn_bill2, year=2021, month=7, path=path_results)
+    xls = BillLocalXls(dsn=cfg.dsn_bill2, year=2021, month=8, path=path_results)
     xls.create_file()
