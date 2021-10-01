@@ -276,7 +276,7 @@ class Stat(object):
         to = self.__prepare__(to, tox)
         prx = ''
         stat = '-'
-        if to.startswith('89'):
+        if to.startswith('89') or to.startswith('79'):
             if self.cdef.is_codevz(to[1:7]):
                 stat = 'vz'; prx = to[1:7]
             else:
@@ -304,9 +304,8 @@ class Stat(object):
                 stat = 'vm'; prx = m.group(1)
 
         if stat == '-':
-            if to in ('100', '101', '102', '103', '104', '105'):
+            if to in ('100', '101', '102', '103', '104', '105', '112', '122'):
                 stat = 'gd'
-                # prx = '100'
                 prx = to
 
         if retprx:
@@ -317,7 +316,7 @@ class Stat(object):
     def getstat(self, to):
         """ return stat (mg, mn, vz) call to number 'to'
         """
-        if to.startswith('89'):
+        if to.startswith('89') or to.startswith('79'):
             prx = to[1:7]
             if self.cdef.is_codevz(prx):
                 #if self.iscodevz(prx):
@@ -2029,7 +2028,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/load.log', help='logfile')
 
     opts, args = p.parse_args()
-    opts.table = ini.table  # Y2021M08
+    opts.table = ini.table  # Y2021M09
     opts.log = flog
 
     if not opts.table or not opts.log:

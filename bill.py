@@ -268,7 +268,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/bill.log', help='logfile')
 
     opt, args = p.parse_args()
-    opt.table = ini.table   # Y2021M08
+    opt.table = ini.table   # Y2021M09
 
     opt.log = flog
     opt.filenoexistnumber = 'log/nonum.txt'   # сбор номеров необх. для биллинга но их нет в тел_базе
@@ -286,7 +286,7 @@ if __name__ == '__main__':
 
         bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="id>0")
 
-        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="cid=204")
+        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="`to` LIKE '___'")
 
         # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="uf='f'")
 
