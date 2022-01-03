@@ -1167,11 +1167,15 @@ class Smg642(object):
         self.cur.close()
         self.db.close()
 
-    def add(self, src_num, dtr_trank, info='-', eq='-', where='', nocid=False, op='-'):
+    def add(self, src_num, dtr_trank, operator='like', info='-', eq='-', where='', nocid=False, op='-'):
         """
         add('%642____%', 'beeline', info='SMG2_bee', eq='?', op='b')
         Add records from SMG642 to billing: numbers src_num to direction dtr_trank
-        :param src_num: example ('8495626%', '626%') or ('710%','627%')
+        2021-12-03: add CTS
+        fm rlike '^(7|8)?495221....' or fm rlike '^(7|8)?495236....' or fm rlike '^(7|8)?495730....' or fm rlike '^(7|8)?495739....');
+        :param operator: 'like' | 'rlike' for src_num
+        :param src_num: example for operator='like'  : ('8495626%', '626%') or ('710%','627%')
+        :param src_num: example for operator='rlike' : ('^(7|8)?495221....', '^(7|8)?495236....', '^(7|8)?495730....')
         :param dtr_trank: example ('mgts_', 'mts') or ('megafon')
         :param info: info for logging
         :param eq: (smg_710, smg_626)
@@ -1179,14 +1183,21 @@ class Smg642(object):
         :param nocid: True - for load cid=0
         :param op: operator (m=MTS,f=MEGAFON,g=VM GUP,x=mgts,r=RSS)
         """
+
         base = 'smg2'
         t1 = time.time()
         oper = dict(beeline='b', bee_rss='b', mts='m', mgts1='x', mgts2='x', mgts3='x', mgts4='x', megafon='f', mtt='a', isdx1='r', isdx2='r', rss='r')
 
         # filter src numbers
-        snum = "fm like '{0}'".format(src_num[0])
+        # snum = "fm like '{0}'".format(src_num[0])
+        # for n in src_num[1:]:
+        #     snum += " or fm like '{0}'".format(n)
+
+        # fm rlike '^(7|8)?495221....' or fm rlike '^(7|8)?495236....' or fm rlike '^(7|8)?495730....' or fm rlike '^(7|8)?495739....');
+
+        snum = "fm {0} '{1}'".format(operator, src_num[0])
         for n in src_num[1:]:
-            snum += " or fm like '{0}'".format(n)
+            snum += " or fm {0} '{1}'".format(operator, n)
 
         # filter dtr trank
         dtrank = "dtr like '{0}'".format(dtr_trank[0])
@@ -2028,7 +2039,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/load.log', help='logfile')
 
     opts, args = p.parse_args()
-    opts.table = ini.table  # Y2021M11
+    opts.table = ini.table  # Y2021M12
     opts.log = flog
 
     if not opts.table or not opts.log:
@@ -2096,6 +2107,12 @@ try:
     # ast_710city - петля с asterisk на asterisk для проброса 710-х номеров через SMG2
     smg2.add2(where="(fm like '%710____'  or fm like '%627____') and (str='asterisk' and dtr='asterisk')",
               info='smg2.710_GD_CITY', eq='ast_710city', op='c', p='c', f3='f', p2='+')  # ast_710city
+
+    # 2021-12-01 add customers from CTS
+    smg2.add(operator='rlike',
+             src_num=('^(7|8)?495221....', '^(7|8)?495236....', '^(7|8)?495730....', '^(7|8)?495739....'),
+             dtr_trank=('mts', 'mrp'), info='smg2.CTS_MTS', eq='smg2_CTS', op='q')
+
 
     t2 = time.time()
     print("work: {0:0.2f} sec".format(t2 - t1, ))

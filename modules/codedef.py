@@ -56,11 +56,7 @@ from modules.func import Func
 
 """
 
-
-# url = 'http://www.rossvyaz.ru/docs/articles/Kody_DEF-9kh.csv'
-# url = 'http://www.rossvyaz.ru/opendata/7710549038-Rosnumbase/Kody_DEF-9kh.csv'
-# url = 'https://rossvyaz.ru/upload/gallery/346/33346_6afd95cd41c52dfbc9a4accb63f6f6a17004e559.csv'
-# url = 'https://rossvyaz.ru/data/DEF-9xx.csv'
+# https://rossvyaz.gov.ru/deyatelnost/resurs-numeracii/vypiska-iz-reestra-sistemy-i-plana-numeracii
 url = 'https://rossvyaz.gov.ru/data/DEF-9xx.csv'
 # "curl {url} | iconv -f cp1251 | dos2unix > def9x.txt"
 

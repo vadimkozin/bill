@@ -215,6 +215,7 @@ class Billing(object):
             # 2020-12-24 number -> cid -> tid -> cost 1 min
             q.sts, q.code, q.zona, q.tar, q.tara, q.nid, q.desc, q.name = \
                 self.mts.get_sts_code_zona_tar_tara_nid_desc_name(tid=q.tid_t, org=q.org, to=q.to, tox=q.tox)
+
             q.stat = self.ctype.get_mwszg(q.sts)        # M, W, S, Z, G, V
             q.st = cfg.stat2st.get(q.stat, '-')         # MG VZ GD
 
@@ -268,7 +269,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/bill.log', help='logfile')
 
     opt, args = p.parse_args()
-    opt.table = ini.table   # Y2021M11
+    opt.table = ini.table   # Y2021M12
 
     opt.log = flog
     opt.filenoexistnumber = 'log/nonum.txt'   # сбор номеров необх. для биллинга но их нет в тел_базе
@@ -286,22 +287,10 @@ if __name__ == '__main__':
 
         bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="id>0")
 
-        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="`to` LIKE '___'")
-
         # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="uf='f'")
 
-        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="_f='-'")
+        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="pid='905'")
 
-        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="sec <= 3")
-
-        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="cid in (9999, 546)")
-
-        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="fm like '%6428346' or fm like '%6428347'")
-
-        # bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="fmx like '%6269911'")
-
-        # bill.bill(dsn=cfg.dsn_bill, table='Y2016M02', info='Y2016M02(W)',  where="`stat`='W' limit 1000")
-        # bill.bill(dsn=cfg.dsn_bill, table='Y2016M02', where="cid=549  limit 100")
 
     except MySQLdb.Error as e:
         log.warning(str(e))
