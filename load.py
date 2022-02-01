@@ -2039,7 +2039,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/load.log', help='logfile')
 
     opts, args = p.parse_args()
-    opts.table = ini.table  # Y2021M12
+    opts.table = ini.table  # Y2022M01
     opts.log = flog
 
     if not opts.table or not opts.log:

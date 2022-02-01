@@ -472,5 +472,5 @@ def _get_customers_u(self):
 
 
 if __name__ == '__main__':
-    xls = BillLocalXls(dsn=cfg.dsn_bill2, year=2021, month=12, path=path_results)
+    xls = BillLocalXls(dsn=cfg.dsn_bill2, year=2022, month=1, path=path_results)
     xls.create_file()

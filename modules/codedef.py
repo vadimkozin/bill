@@ -586,7 +586,7 @@ if __name__ == '__main__':
                         format='%(asctime)s %(message)s', )
     log = logging.getLogger('app')
     try:
-        # один раз в месяц примерно, для загрузки новых номеров СПС в defCode c сайта Россвязи
+        # один раз в месяц примерно, для загрузки новых номеров СПС в tarif.defCode c сайта Россвязи
         cdef = Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
         cdef.update(url=url, tabsample='table_defcode.sql', fout=fout, fout_csv=fout_csv, fload=fload)
         exit(1)
