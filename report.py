@@ -258,7 +258,7 @@ class FirstStep(object):
         :return:
         """
         opts = self.opts
-        table_data = opts.table               # Y2015M11
+        table_data = opts.table
         cursor = self.cur
         table = cfg.operator[oper]['tab1']    # rss or inf
 

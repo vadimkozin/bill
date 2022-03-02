@@ -571,7 +571,7 @@ class Numbers(object):
         """
         if num.startswith('8495') or num.startswith('8499') or num.startswith('7495') or num.startswith('7499'):
             num = num[4:]
-        elif num.startswith('499'):
+        elif num.startswith('495') or num.startswith('499'):
             num = num[3:]
 
         if self.re811.search(num):
@@ -2039,7 +2039,7 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default='log/load.log', help='logfile')
 
     opts, args = p.parse_args()
-    opts.table = ini.table  # Y2022M01
+    opts.table = ini.table  # Y2022M02
     opts.log = flog
 
     if not opts.table or not opts.log:
@@ -2108,10 +2108,13 @@ try:
     smg2.add2(where="(fm like '%710____'  or fm like '%627____') and (str='asterisk' and dtr='asterisk')",
               info='smg2.710_GD_CITY', eq='ast_710city', op='c', p='c', f3='f', p2='+')  # ast_710city
 
-    # 2021-12-01 add customers from CTS
+    # 2021-12-01 added customers from CTS
     smg2.add(operator='rlike',
              src_num=('^(7|8)?495221....', '^(7|8)?495236....', '^(7|8)?495730....', '^(7|8)?495739....'),
              dtr_trank=('mts', 'mrp'), info='smg2.CTS_MTS', eq='smg2_CTS', op='q')
+
+    # 2022-02-01 added customers from TCU
+    smg2.add2(where="(str='tcukom' and dtr='mts')", info='smg2.TCU_MTS', eq='smg2_TCU', op='q', p='q')
 
 
     t2 = time.time()

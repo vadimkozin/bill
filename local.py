@@ -28,10 +28,12 @@ from modules import cfg
 from modules import utils
 from modules.progressbar import Progressbar
 import ini
+from modules.xlslocal import BillLocalXls
 
 root = os.path.realpath(os.path.dirname(sys.argv[0]))
 flog = "{root}/log/{file}".format(root=root, file='local.log')
 shema = "{root}/sql/local".format(root=root)
+path_results = "{root}/res_local".format(root=root)   # файлы с результатом по местной связи (utf-8)
 
 
 def get_path(file, prefix=shema):
@@ -409,6 +411,15 @@ class BillingLocal(object):
         xlog('marked {records} 642x records'.format(records=records))
         marked += records
 
+        # rest
+        sql = "UPDATE {table} SET `stp`='+' WHERE `_stat`='G' AND `stp` ='-' AND " \
+              "(`{field_from}` NOT LIKE '642%' OR `{field_from}` NOT LIKE '626%')".\
+            format(table=self.opts.table_bill, field_from=self.field_from)
+        records = execute(cursor, sql)
+        xlog('marked {records} records (CTS, TCU calls)'.format(records=records))
+        marked += records
+
+
         return marked
 
     def _get_cust_for_billing(self, cursor, exclude_cid_list):
@@ -444,6 +455,8 @@ class BillingLocal(object):
         # 1. Для каждого клиента из списка cid_list
         for cid in cid_list:
             tid = self.get_tid(cid)
+            if tid == 0:    # 0 -> повремёнку не считаем
+                continue
             tar = self.get_tar(tid)
             abmin = tar['abmin']
             cost1min = tar['cost1min']
@@ -550,12 +563,20 @@ class BillingLocal(object):
         :param where: дополнительный фильтр
         :return: количество номеров
         """
-        re_626 = re.compile(r'626\d{3}')
-        re_642 = re.compile(r'642\d{3}')
-        re_710 = re.compile(r'710\d{3}')
-        re_627 = re.compile(r'627\d{3}')
         re_812 = re.compile(r'812\d{3}')
         re_811 = re.compile(r'811\d{3}')
+
+        re_list = [
+            re.compile(r'626\d{4}'),
+            re.compile(r'642\d{4}'),
+            re.compile(r'710\d{4}'),
+            re.compile(r'627\d{4}'),
+            re.compile(r'236\d{4}'),
+            re.compile(r'271\d{4}'),
+            re.compile(r'543\d{4}'),
+            re.compile(r'739\d{4}'),
+            re.compile(r'783\d{4}'),
+        ]
 
         sql = "SELECT `id`, `cid`, `fm`, `fm2` FROM {table} WHERE `_stat`='G'".format(table=self.opts.table_bill)
 
@@ -578,26 +599,25 @@ class BillingLocal(object):
         for line in cursor:
             num = '-'
             idx, cid, fm, fm2 = line
-            if re_626.match(fm2):
-                num = fm2
-            elif re_642.match(fm2):
-                num = fm2
-            elif re_710.match(fm2):
-                num = fm2
-            elif re_627.match(fm2):
-                num = fm2
-            elif cid == 58 and re_812.match(fm2):
-                num = fm2
-            elif cid == 58 and re_812.match(fm):
-                num = fm
-            elif cid == 273 and re_812.match(fm):
-                num = fm
-            elif (cid == 319 or cid == 53) and re_812.match(fm):  # Терминал-Сити(319), РВЛ-Строй(53)
-                num = fm
-            elif cid == 282 and re_811.match(fm):
-                num = fm
-            elif cid == 957 and re_811.match(fm):  # ?
-                num = fm
+
+            for _re in re_list:
+                if _re.match(fm2):
+                    num = fm2
+                    break
+
+            if num == '-':
+                if cid == 58 and re_812.match(fm2):
+                    num = fm2
+                elif cid == 58 and re_812.match(fm):
+                    num = fm
+                elif cid == 273 and re_812.match(fm):
+                    num = fm
+                elif (cid == 319 or cid == 53) and re_812.match(fm):  # Терминал-Сити(319), РВЛ-Строй(53)
+                    num = fm
+                elif cid == 282 and re_811.match(fm):
+                    num = fm
+                elif cid == 957 and re_811.match(fm):  # ?
+                    num = fm
 
             values.append((idx, num))
 
@@ -726,6 +746,10 @@ if __name__ == '__main__':
                         table_bill=opt.table_bill, period=opt.period)
 
         stream.save_data_stream(opt.period)
+
+        # Результат по местной связи в виде xls-файла
+        xls = BillLocalXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_results)
+        xls.create_file()
 
         xlog('.')
 
