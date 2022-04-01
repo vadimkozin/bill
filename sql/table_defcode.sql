@@ -9,6 +9,7 @@ CREATE TABLE `_TABLE_CREATE_` (
   `oper` varchar(150) NOT NULL DEFAULT '' COMMENT 'оператор связи',
   `region` varchar(120) NOT NULL DEFAULT '' COMMENT 'регион',
   `area` varchar(100) NOT NULL DEFAULT '-' COMMENT 'пространство включающее в себя регион',
+  `inn` varchar(16) NOT NULL DEFAULT '-' COMMENT 'ИНН',
   `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'штамп времени',
   PRIMARY KEY (`id`),
   KEY `abc` (`abc`),

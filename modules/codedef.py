@@ -57,7 +57,8 @@ from modules.func import Func
 """
 
 # https://rossvyaz.gov.ru/deyatelnost/resurs-numeracii/vypiska-iz-reestra-sistemy-i-plana-numeracii
-url = 'https://rossvyaz.gov.ru/data/DEF-9xx.csv'
+# url = 'https://rossvyaz.gov.ru/data/DEF-9xx.csv'
+url = 'http://opendata.digital.gov.ru/downloads/DEF-9xx.csv'
 # "curl {url} | iconv -f cp1251 | dos2unix > def9x.txt"
 
 
@@ -435,6 +436,9 @@ class Codedef(object):
         ts = current_ymdhms()
 
         # АВС/ DEF;От;До;Емкость;Оператор;Регион
+        # АВС/ DEF;От;До;Емкость;Оператор;Регион;ИНН
+        # 900;0000000;0061999;62000;ООО "Т2 Мобайл";Краснодарский край;7743895280
+
         # 900;0;99999;100000;Телеком Евразия;Краснодарский край
         # 900;3950000;4049999;100000;ЕКАТЕРИНБУРГ-2000;Ямало - Ненецкий автономный округ |Тюменская область
         # 955;5550000;5559999;10000;ООО "ТРН-телеком";Московская область; Москва|Московская область; Москва
@@ -447,7 +451,7 @@ class Codedef(object):
 
             line = re_patch.sub('Москва|Московская область', line)
 
-            abc, fm, to, capacity, oper, region = line.strip().split(';')
+            abc, fm, to, capacity, oper, region, inn = line.strip().split(';')
             regs = region.split('|')
             region, area = (regs[0].strip(), '-')
             if len(regs) > 1:
@@ -455,9 +459,9 @@ class Codedef(object):
             stat = self.get_rstat(region)
             zona = self.get_rzona(region)
 
-            msg = "{id};{abc};{fm};{to};{capacity};{zona};{stat};{oper};{region};{area};{ts}".format(
+            msg = "{id};{abc};{fm};{to};{capacity};{zona};{stat};{oper};{region};{area};{inn};{ts}".format(
                     id='0', abc=abc, fm=fm, to=to, capacity=capacity, oper=oper, region=region,
-                    area=area, zona=zona, stat=stat, ts=ts)
+                    area=area, zona=zona, stat=stat, inn=inn, ts=ts)
 
             f2.write(msg + "\n")
             step += 1
