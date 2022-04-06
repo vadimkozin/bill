@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Биллинг локальной (местной связи) , она-же повремёнка
+Биллинг местной поременной связи , она-же повремёнка
 run: local.py --year=2021 --month=1    // расчёт повремёнки за январь-2021
 
 таблицы как основа:
@@ -274,7 +274,7 @@ def set_local_tariff_for_customers(dsn):
 
 class BillingLocal(object):
     """
-    Телефонный биллинг лосальных связей (повремёнка)
+    Телефонный биллинг локальных связей (повремёнка)
     """
 
     def __init__(self, opts):
@@ -644,7 +644,7 @@ class BillingLocal(object):
 
     def bill(self, dsn_bill, dsn_tar, dsn_cust, info=''):
         """
-        Главная ф-ия биллинга местной связи
+        Главная ф-ия биллинга местной повременной связи
         :param dsn_bill: параметры подключения к базе биллинга
         :param dsn_tar: параметры подключения к базе тарифов
         :param dsn_cust: параметры подключения к базе клиентов
@@ -747,7 +747,7 @@ if __name__ == '__main__':
 
         stream.save_data_stream(opt.period)
 
-        # Результат по местной связи в виде xls-файла
+        # Результат по местной-повременной связи в виде xls-файла
         xls = BillLocalXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_results)
         xls.create_file()
 
