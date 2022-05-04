@@ -596,10 +596,6 @@ if __name__ == '__main__':
         exit(1)
 
         #
-        # (один раз) добавление синонимов для регионов из новых данных Россвязи
-        # cdef.add_alias_to_region()
-
-        #
         # РАЗЛИЧНЫЕ ТЕСТЫ ---------------------
         cdef = Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
 

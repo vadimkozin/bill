@@ -219,7 +219,7 @@ if __name__ == '__main__':
     try:
         # Биллинг местной связи -> результат в bill.mest_book
         mest = BillingMest(opt, dsn_bill=cfg.dsn_bill2, dsn_tar=cfg.dsn_tar, dsn_cust=cfg.dsn_cust)
-        mest.bill('bill mest calls')
+        mest.bill()
 
         # Результат из таблицы bill.mest_book преобразуем в xls-файл
         xls = BillMestXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_results)

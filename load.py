@@ -2109,7 +2109,6 @@ try:
               info='smg2.710_GD_CITY', eq='ast_710city', op='c', p='c', f3='f', p2='+')  # ast_710city
 
     # 2021-12-01 added customers from CTS
-    # '^(7|8)?495623....', '^(7|8)?495624....', '^(7|8)?495679....'
     smg2.add(operator='rlike',
              src_num=('^(7|8)?495221....', '^(7|8)?495236....', '^(7|8)?495730....', '^(7|8)?495739....',
                       '^(7|8)?495623....', '^(7|8)?495624....', '^(7|8)?495679....'),
@@ -2118,15 +2117,9 @@ try:
     # 2022-02-01 added customers from TCU
     smg2.add2(where="(str='tcukom' and dtr='mts')", info='smg2.TCU_MTS', eq='smg2_TCU', op='q', p='q')
 
-
     t2 = time.time()
     print("work: {0:0.2f} sec".format(t2 - t1, ))
     itog_log(info='end', step=0, update=0, t1=t1, t2=time.time())
-
-    # rec = bill.split626(dsn_tel=cfg.dsn_tel, tab_split='`telefon`.`num626rss`', info='split626')
-    # msg = "626xxxx : разделено на G|R {rec} записей".format(rec=rec)
-    # print(msg)
-    # log.info(msg)
 
     log.warning('.')
 
