@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 
 import os
-import MySQLdb
+import pymysql
 import xlsxwriter
-from modules import cfg
+from cfg import cfg
+from modules import utils as ut
 
 owd = os.getcwd()
 os.chdir('..')
 root = os.getcwd()
 os.chdir(owd)
-path_results = "{root}/res_local".format(root=root)   # файлы с результатом по местной связи (utf-8)
+
+# example document for 2022, 04: {root}/result/2022_04/local/2022_04_local.xlsx
+path_result = cfg.paths['result']   # корень для результатов
+dir_result = "local"                # под-директория для результатов
 
 a2 = dict(name="OOO 'A2-Телеком'", suffix_file='_loc')
 month_names = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь',
@@ -68,14 +72,17 @@ class BillLocalXls(object):
     """
     Результат по местной связи в виде xls-файла
     """
-    def __init__(self, dsn, year, month, path):
+    def __init__(self, dsn, year, month, path, directory):
         self.dsn = dsn
         self.year = year
         self.month = month
         self.period = '{year:04d}_{month:02d}'.format(year=int(year), month=int(month))  # 2021_04
         self.table = 'Y{year:04d}M{month:02d}'.format(year=int(year), month=int(month))  # Y2021M04
-        self.outfile = "{path}/{period}_{suffix}.{ext}".format(path=path, period=self.period, suffix=a2['suffix_file'],
-                                                               ext='xlsx')  # 2021_04_loc.xls
+        # self.outfile = "{path}/{period}_{suffix}.{ext}".format(path=path, period=self.period, suffix=a2['suffix_file'],
+        #                                                        ext='xlsx')  # 2021_04_loc.xls
+        # {root}/result/2022_04/local/2021_04_loc.xls
+        self.path = path    # {root}/result
+        self.directory = directory  # local
 
     @staticmethod
     def create_formats(workbook):
@@ -123,8 +130,14 @@ class BillLocalXls(object):
         return customer2type
 
     def create_file(self):
+        path, full_path = ut.get_full_path(year=self.year, month=self.month, path=self.path, directory=self.directory,
+                                           ext='xlsx')
+        ut.makedir(path)
+
         # создание книги
-        workbook = xlsxwriter.Workbook(self.outfile)
+        # workbook = xlsxwriter.Workbook(self.outfile)
+        workbook = xlsxwriter.Workbook(full_path)
+
         frm = BillLocalXls.create_formats(workbook)
 
         # итоги по клиентам
@@ -140,7 +153,7 @@ class BillLocalXls(object):
         # счета в итогах
         accounts = [str(it.account) for it in book_list]   # ['2','3',..]
         if len(accounts) == 0:
-            print('not local calls for billing')
+            print('! no local calls for billing of time-based payment')
             return False
 
         # итоги по номерам
@@ -169,7 +182,7 @@ class BillLocalXls(object):
         Делает выборку из БД - итоги по клиентам/суммам местной повременной связи за период
         :return: список элементов BookItem, список элементов CustItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         period = '{year:04d}_{month:02d}'.format(year=int(self.year), month=int(self.month))  # 2021_04
         sql = cfg.sqls['local_customer_u'].format(period=period, uf='u')
@@ -192,7 +205,7 @@ class BillLocalXls(object):
         :param accounts: список account для выборки
         :return: список элементов BookItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['local_numbers'].format(accounts=','.join(accounts))
         cursor.execute(sql)
@@ -276,7 +289,7 @@ class BillLocalXls(object):
         :param cid: код клиента
         :return: (6269515, 6269123, ...)
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['local_customer_numbers'].format(period=self.period, cid=cid)
         cursor.execute(sql)
@@ -297,7 +310,7 @@ class BillLocalXls(object):
         """
 
         print(numbers)
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         # sql = cfg.sqls['local_num_detail_fmx'].format(table=self.table, numbers=numbers)
         sql = cfg.sqls['local_num_detail_fm'].format(table=self.table, numbers=numbers)
@@ -456,7 +469,7 @@ def _get_customers_u(self):
         Делает выборку клиентов из книги продаж для юр-лиц
         :return: список элементов CustItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['customers_u'].format(year=self.year, month=self.month)
         cursor.execute(sql)
@@ -472,5 +485,5 @@ def _get_customers_u(self):
 
 
 if __name__ == '__main__':
-    xls = BillLocalXls(dsn=cfg.dsn_bill2, year=2022, month=1, path=path_results)
+    xls = BillLocalXls(dsn=cfg.dsn_bill2, year=2022, month=1, path=path_result, directory=dir_result)
     xls.create_file()

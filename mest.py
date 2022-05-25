@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
@@ -17,24 +17,20 @@ tarif.mest_book - книга по местной связи
 2) По результату формируем отчёт в ./mest/2022_03_mest.xls
 -
 """
-import os
-import sys
 import optparse
 import traceback
 import time
-import MySQLdb
+import pymysql
 import logging
 from datetime import datetime
-from modules import cfg
+from cfg import cfg, ini
 from modules import utils as ut
-import ini
-# from modules.xlslocal import BillLocalXls
 from modules.xlsmest import BillMestXls
 
-root = os.path.realpath(os.path.dirname(sys.argv[0]))
-flog = "{root}/log/{file}".format(root=root, file='mest.log')
-shema = "{root}/sql/table_mest_book.sql".format(root=root)
-path_results = "{root}/mest".format(root=root)   # файлы с результатом по местной связи (utf-8)
+path_result = cfg.paths['result']       # корень для результатов
+dir_result = cfg.paths['mest']['dir']   # под-директория для файлов с местной связью (очень мало)
+flog = cfg.paths['logging']['mest']     # лог-файл
+shema = "{root}/sql/table_mest_book.sql".format(root=cfg.root) # sql-схема твблицы местной связи (mest_book)
 
 
 def xlog(msg, out_console=True):
@@ -109,7 +105,8 @@ class BillingMest(object):
         :param table: таблица с тарифными планами клиентов (tarif.tariff_tel)
         :return: cid2tar - мапа cid->cust1min для клиентов, у которых нужно считать местную связь
         """
-        db = MySQLdb.Connect(**self.dsn_tar)
+        db = pymysql.Connect(**self.dsn_tar)
+
         cursor = db.cursor()
         table = self.opts.table_tariff
 
@@ -133,7 +130,7 @@ class BillingMest(object):
 
         xlog('period: {period}'.format(period=period))
 
-        db = MySQLdb.Connect(**self.dsn_bill)
+        db = pymysql.Connect(**self.dsn_bill)
         cursor = db.cursor()
 
         # клиенты с оплачиваемой местной связью
@@ -222,12 +219,12 @@ if __name__ == '__main__':
         mest.bill()
 
         # Результат из таблицы bill.mest_book преобразуем в xls-файл
-        xls = BillMestXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_results)
+        xls = BillMestXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_result, directory=dir_result)
         xls.create_file()
 
         xlog('.')
 
-    except MySQLdb.Error as e:
+    except pymysql.Error as e:
         log.exception(str(e))
         print(e)
     except RuntimeError as e:

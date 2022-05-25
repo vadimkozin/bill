@@ -7,7 +7,7 @@ calltype - модуль определения типа звонка :
 Calltype - определяет по номеру тип звонка: mg(M) mn(W) vz(Z) gd(G) mgs(M) vm(V)
 """
 import re
-from modules import cfg
+from cfg import cfg
 from modules import codedef
 
 

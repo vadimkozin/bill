@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys
-import os
 import time
-import logging
-import MySQLdb
+import pymysql
 import traceback
 from io import open
 
@@ -59,7 +56,8 @@ class CodedefInfo(object):
         :param tabcode: таблица с def-кодами tarif.defCode
         """
         self.dsn = dsn                      # dsn подключения к базе
-        self.db = MySQLdb.Connect(**dsn)    # db - активная ссылка на базу
+        self.db = pymysql.Connect(**dsn)    # db - активная ссылка на базу
+
         self.cur = self.db.cursor()         # cur - курсор
         self.tabCode = tabcode              # таблица с кодами (tarif.defCode)
 
@@ -179,7 +177,7 @@ if __name__ == '__main__':
         # печать кодов ВЗ-связи
         # cdef.print_codevz()
 
-    except MySQLdb.Error as e:
+    except pymysql.Error as e:
         xprint(e)
     except Exception as e:
         traceback.print_exc()

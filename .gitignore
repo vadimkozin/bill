@@ -276,12 +276,9 @@ dmypy.json
 
 # End of https://www.toptal.com/developers/gitignore/api/pycharm,macos,python
 ######
-modules/cfg.py
+cfg/cfg.py
 tmp/
-results/
 log/
-reports/
-res_local/
 a2/
 
 

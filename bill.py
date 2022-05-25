@@ -1,24 +1,17 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Биллинг телефонии (created: 2016_03)
- opt.table = 'Y2016M03'
- opt.log = filename
- opt.filenoexistnumber = filename_no_exist_number
- bill = Billing(opt)
- bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where=None)
+python3 bill.py --year=2022 --month=1
 """
-import os
-import sys
 import optparse
 import logging
 from logging import Logger
-
-import MySQLdb
+import pymysql
 import traceback
 import time
 #
-from modules import cfg              # конфиг
+from cfg import cfg, ini
 from modules import codedef          # коды СПС
 from modules import customers        # клиенты
 from modules import link             # текущая разбираемая связь
@@ -30,10 +23,9 @@ from modules import calendar         # производственный кале
 from modules import calc             # функции для вычислений НДС и пр.
 from modules.func import Func        # разные функции
 from modules.progressbar import Progressbar     # прогресс-бар
-import ini
+from modules import utils as ut
 
-root = os.path.realpath(os.path.dirname(sys.argv[0]))
-flog = "{root}/log/{file}".format(root=root, file='bill.log')
+flog = cfg.paths['logging']['bill']   # лог-файл
 
 
 def itog_log(info='-', step=0, update=0, tm1=0.0, tm2=0.0, cost=0.0, min_mg=0):
@@ -64,7 +56,7 @@ class Update(object):
     def __init__(self, dsn, table):
         self.dsn = dsn
         self.table = table
-        self.db = MySQLdb.Connect(**dsn)
+        self.db = pymysql.Connect(**dsn)
         self.cursor = self.db.cursor()
 
     def __del__(self):
@@ -149,7 +141,7 @@ class Billing(object):
         :param save_db: True|False:  True-сохранять изменения в базе; False-вывод на экран
         """
         t1 = time.time()
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
         cursor = db.cursor()
         table = self.opts.table
 
@@ -167,7 +159,7 @@ class Billing(object):
 
         # инфо по одной связи
         q = link.Link()
-        q.prn_title()
+        # q.prn_title()
 
         sql = "select id, dt, fm, fmx, `to`, tox, sec, min, op from `{table}` where sec>0".format(table=table)
         if where:
@@ -263,15 +255,21 @@ class Billing(object):
 
 if __name__ == '__main__':
     p = optparse.OptionParser(description="billing",
-                              prog="bill.py", version="0.1a", usage="bill.py --tab=table [--log=namefile]")
+                              prog="bill.py", version="0.1a", usage="bill.py --year=year --month=month [--log=namefile]")
 
-    p.add_option('--tab', '-t', action='store', dest='table', help='table, ex.Y2013M09')
-    p.add_option('--log', '-l', action='store', dest='log', default='log/bill.log', help='logfile')
+    p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
+    p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
+    p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
 
     opt, args = p.parse_args()
-    opt.table = ini.table   # Y2022M04
 
-    opt.log = flog
+    # параметры в командной строке - в приоритете
+    if not (opt.year and opt.month):
+        opt.year = ini.year
+        opt.month = ini.month
+
+    opt.table = ut.year_month2period(year=opt.year, month=opt.month)
+
     opt.filenoexistnumber = 'log/nonum.txt'   # сбор номеров необх. для биллинга но их нет в тел_базе
 
     if not opt.table or not opt.log:
@@ -280,6 +278,7 @@ if __name__ == '__main__':
 
     logging.basicConfig(
         filename=opt.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
+
     log: Logger = logging.getLogger('app')
 
     try:
@@ -287,10 +286,7 @@ if __name__ == '__main__':
 
         bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="id>0")
 
-
-
-
-    except MySQLdb.Error as e:
+    except pymysql.Error as e:
         log.warning(str(e))
         print(e)
     except RuntimeError as e:

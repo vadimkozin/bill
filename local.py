@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
@@ -15,25 +15,22 @@ bill.loc_book_s - таблица с книгой счетов местной с�
 -
 customers.Cust.tid_l - код тарифа расчёта местной связи -> tarrif.loc_tariff.tid
 """
-import os
-import sys
 import re
 import optparse
 import traceback
 import time
-import MySQLdb
+import pymysql
 import logging
 from datetime import datetime
-from modules import cfg
+from cfg import cfg, ini
 from modules import utils
 from modules.progressbar import Progressbar
-import ini
 from modules.xlslocal import BillLocalXls
 
-root = os.path.realpath(os.path.dirname(sys.argv[0]))
-flog = "{root}/log/{file}".format(root=root, file='local.log')
-shema = "{root}/sql/local".format(root=root)
-path_results = "{root}/res_local".format(root=root)   # файлы с результатом по местной связи (utf-8)
+shema = "{root}/sql/local".format(root=cfg.root)
+path_result = cfg.paths['result']       # корень для результатов
+dir_result = cfg.paths['local']['dir']  # под-директория для файлов с повремёнкой (если есть)
+flog = cfg.paths['logging']['local']    # лог-файл
 
 
 def get_path(file, prefix=shema):
@@ -141,7 +138,7 @@ class Stream(object):
         1) Создание словаря тарифов для номеров в потоке self.cid2tar
         2) Возвращает список клиентов, участвующих в вычислении по потоку
         """
-        db = MySQLdb.Connect(**self.dsn_tar)
+        db = pymysql.Connect(**self.dsn_tar)
         cursor = db.cursor()
 
         # 1) Создание словаря тарифов
@@ -209,8 +206,10 @@ class Stream(object):
         :param period: период, например, 2021_01
         :return: киличество сохранённых строк
         """
-        db = MySQLdb.Connect(**self.dsn_stream)
+        db = pymysql.Connect(**self.dsn_stream)
+
         cursor = db.cursor()
+        cursor_insert = db.cursor()
         field = 'fm3'
 
         # удаление записей из stream за period если они там есть
@@ -239,7 +238,7 @@ class Stream(object):
                     format(table=self.table_stream, account=account, cid=cid, period=self.period,
                            number=number, min=sum_min)
                 # print(sql)
-                records += execute(cursor, sql)
+                records += execute(cursor_insert, sql)
 
         xlog('stream: insert {records} records in table {table} for {period}'.
              format(records=records, table=self.table_stream, period=period))
@@ -252,7 +251,8 @@ def set_local_tariff_for_customers(dsn):
     :param dsn:
     :return:
     """
-    db = MySQLdb.Connect(**dsn)
+    db = pymysql.Connect(**dsn)
+
     cursor = db.cursor()
 
     table = 'customers.Cust'
@@ -294,7 +294,8 @@ class BillingLocal(object):
         :param table: таблица с тарифами местной связи
         :return:
         """
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
+
         cursor = db.cursor()
 
         sql = 'SELECT `tid`, `abmin`, `cost1min` FROM {table}'.format(table=table)
@@ -323,7 +324,8 @@ class BillingLocal(object):
         :param dsn: параметры подключения к базе клиентов
         :param table: таблица с клиентами
         """
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
+
         cursor = db.cursor()
 
         sql = 'SELECT `CustID`, `CustType` customer_type, `tid_l` FROM {table}'.format(table=table)
@@ -358,7 +360,8 @@ class BillingLocal(object):
         :param table: таблица
         :return: список в виде '1,23,324'
         """
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
+
         cursor = db.cursor()
         sql = "SELECT `cid` FROM {table} ORDER BY `cid`".format(table=table)
         stream_cid_list = []
@@ -376,7 +379,7 @@ class BillingLocal(object):
         :param dsn:
         :return:
         """
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
         cursor = db.cursor()
 
         requests = list()
@@ -397,6 +400,7 @@ class BillingLocal(object):
         """
         marked = 0
 
+        # 626
         sql = "UPDATE {table} SET `stp`='+' WHERE `_stat`='G' AND " \
               "(`{field_from}` LIKE '626%' OR `fmx` LIKE '8495626%')".\
             format(table=self.opts.table_bill, field_from=self.field_from)
@@ -404,6 +408,7 @@ class BillingLocal(object):
         xlog('marked {records} 626x records'.format(records=records))
         marked += records
 
+        # 642
         sql = "UPDATE {table} SET `stp`='+' WHERE `_stat`='G' AND " \
               "(`{field_from}` LIKE '642%' OR `fmx` LIKE '8499642%')".\
             format(table=self.opts.table_bill, field_from=self.field_from)
@@ -416,9 +421,8 @@ class BillingLocal(object):
               "(`{field_from}` NOT LIKE '642%' OR `{field_from}` NOT LIKE '626%')".\
             format(table=self.opts.table_bill, field_from=self.field_from)
         records = execute(cursor, sql)
-        xlog('marked {records} records (CTS, TCU calls)'.format(records=records))
+        xlog('marked {records} records (CTS, TCU and rest calls)'.format(records=records))
         marked += records
-
 
         return marked
 
@@ -556,13 +560,18 @@ class BillingLocal(object):
 
         return max_number
 
-    def _set_number_local(self, cursor, where=None):
+    def _set_number_local(self, dsn, where=None):
         """
         Устновка номера from (fm3) для местной связи
+        :param dsn: параметры подключения к БД
         :param cursor: курсор на базу с данными
         :param where: дополнительный фильтр
-        :return: количество номеров
+        :return: количество обновлённых записей
         """
+        db = pymysql.Connect(**dsn)
+        cursor = db.cursor()
+        cursor_update = db.cursor()
+
         re_812 = re.compile(r'812\d{3}')
         re_811 = re.compile(r'811\d{3}')
 
@@ -582,6 +591,7 @@ class BillingLocal(object):
 
         if where:
             sql += " AND ({where}) ".format(where=where)
+
         cursor.execute(sql)
 
         info = 'set from({field_from}) for local billing: {table}'.\
@@ -634,13 +644,15 @@ class BillingLocal(object):
 
                 sql = "{sql_begin} {when} {sql_end} {where}". \
                     format(sql_begin=sql_begin, when=when, sql_end=sql_end, where=where)
-                updated += execute(cursor, sql)
+
+                updated += execute(cursor_update, sql)
+
                 step = 0
                 values = []
 
         bar.go_new_line()
         xlog("set {all}/{updated} (count/updated) number for local".format(all=count, updated=updated))
-        return step
+        return updated
 
     def bill(self, dsn_bill, dsn_tar, dsn_cust, info=''):
         """
@@ -653,11 +665,11 @@ class BillingLocal(object):
         t1 = time.time()
         xlog('period: {period}'.format(period=self.opts.period))
 
-        db = MySQLdb.Connect(**dsn_bill)
+        db = pymysql.Connect(**dsn_bill)
         cursor = db.cursor()
 
         # определение номера местной связи (fm3)
-        self._set_number_local(cursor)
+        self._set_number_local(dsn=dsn_bill)
 
         # сохранение в мапе отношения tid->{abmin, cost1min}
         self._read_local_tar(dsn=dsn_tar, table=self.opts.table_numbers_tar)
@@ -709,8 +721,11 @@ if __name__ == '__main__':
     p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
 
     opt, args = p.parse_args()
-    opt.year = ini.year
-    opt.month = ini.month
+
+    # параметры в командной строке - в приоритете
+    if not (opt.year and opt.month):
+        opt.year = ini.year
+        opt.month = ini.month
 
     if not opt.year or not opt.month or not opt.log:
         print(p.print_help())
@@ -748,12 +763,12 @@ if __name__ == '__main__':
         stream.save_data_stream(opt.period)
 
         # Результат по местной-повременной связи в виде xls-файла
-        xls = BillLocalXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_results)
+        xls = BillLocalXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_result, directory=dir_result)
         xls.create_file()
 
         xlog('.')
 
-    except MySQLdb.Error as e:
+    except pymysql.Error as e:
         log.exception(str(e))
         print(e)
     except RuntimeError as e:

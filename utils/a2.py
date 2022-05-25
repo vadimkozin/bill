@@ -15,7 +15,7 @@ tel.a2_customers - клиенты А2
 import os
 import MySQLdb
 import datetime
-from modules import cfg
+from cfg import cfg
 from modules import utils
 from modules import progressbar
 

@@ -4,8 +4,8 @@
 """
 tarhuhtamaki - модуль тарификации отдельного МН-тарифа для Хухтамаки(1320)
 """
-import MySQLdb
-from modules import cfg
+import pymysql
+from cfg import cfg
 
 
 class TarHuhtamaki(object):
@@ -25,7 +25,7 @@ class TarHuhtamaki(object):
         self._read_()
 
     def _read_(self):
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cur = db.cursor()
 
         sql = "SELECT code, dest, tar FROM {table} WHERE code RLIKE '^[0-9]+$' ORDER BY code DESC".\

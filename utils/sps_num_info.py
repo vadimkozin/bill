@@ -10,7 +10,7 @@ import os
 import sys
 import re
 import MySQLdb
-from modules import cfg              # конфиг
+from cfg import cfg
 
 root = os.path.realpath(os.path.dirname(sys.argv[0]))
 logfile = "{root}/log/{file}".format(root=root, file='num4gorod.log')

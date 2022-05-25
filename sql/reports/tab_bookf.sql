@@ -5,6 +5,7 @@ CREATE TABLE `_TABLE_CREATE_` (
   `period` char(8) NOT NULL DEFAULT '-' COMMENT 'Период, за который выставили счет(извещение): Y2015_11',
   `account` int(11) unsigned NOT NULL DEFAULT '0' COMMENT 'Номер счета(извещения)',
   `cid` int(4) NOT NULL DEFAULT '0' COMMENT 'Код клиента с 01-10-2015 uf=f',
+  `xcid` int(4) NOT NULL DEFAULT '0' COMMENT 'Код клиента для cid=549',
   `pid` int(4) NOT NULL DEFAULT '0' COMMENT 'Код код клиента квартирного сектора-CustKS!PID (c 01-10-2015 pid=0)',
   `date` date NOT NULL COMMENT 'Дата выставления счёта(извещения)',
   `calls` int(4) NOT NULL DEFAULT '0' COMMENT 'Количество связей(разговоров',

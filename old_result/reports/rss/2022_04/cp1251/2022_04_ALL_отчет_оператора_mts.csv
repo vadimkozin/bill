@@ -1,0 +1,67 @@
+ВЗ: sum: 11897,27 	nds:2379,45 	vsego: 14276,72  	min:7354
+МГ: sum: 20505,76 	nds:4101,16 	vsego: 24606,92  	min:6046
+МН: sum: 4480,55 	nds:896,11 	    vsego: 5376,66  	min:226
+-----------------------------------------------------------------
+sumsum: 36883,58 	sumnds:7376,72 	sumvsego: 44260,30  	summin:13626
+800 :1354 мин, МГ-800: 6046-1354 = 4692
+Условная стоимость:
+МГ+МН+СР:   7789.02
+ВЗ:         8089.40
+           15878,42
+/////////////////////////////////
+// МТС, условная стоимость:
+    calls   min     summa
+МГ: 1972    4723    4437.52
+МН: 79      227     5270.80
+ВЗ: 3212    7369    8105.90
+----------------------------
+    5263     12319   17814.22
+--
+МТС изменил РТ (расчётные таксы) на МН с 01-04-2022
+1. Перед расчётом за апрель-2022: UPDATE komstarCode set tar = tarnew;  и удалить tarnew
+2. Перед расчётом за апрель-2022 обновить клиентские тарифы на МН: tar_cust=komstarCode.tar*1.5, а у физ-лиц еще на 20%.  Кроме Морспасслужбы.
+
+реализация:
++1):
+mv komstarCode komstarCode_2022_05_01
+mv komstarCode_with_2022_04_01 komstarCode
+
+2:)
+# агентские тарифы на МН с 2022-04-01
+SELECT nid, tar, name FROM komstarCode WHERE `type`='MN';
+
+# создали клиентский тариф для МН:
+UPDATE komstarCode set tar_cust_mn=tar*1.5 WHERE type='MN';
+UPDATE komstarCode set tar_cust_mn_fiz=tar*1.5*1.2 WHERE type='MN';
+
+# обновление тарифов:
+
+/* tid=1 Юр */
+UPDATE mtsTar m JOIN komstarCode k ON m.nid=k.nid SET m.tarold=m.tar, m.tar=k.tar_cust_mn WHERE m.tid=1 AND k.type='MN';
+/* tid=2 Физ */
+UPDATE mtsTar m JOIN komstarCode k ON m.nid=k.nid SET m.tarold=m.tar, m.tar=k.tar_cust_mn_fiz WHERE m.tid=2 AND k.type='MN';
+/* tid = [3,4] Северный порт, ХМСЗ */
+UPDATE mtsTar m JOIN komstarCode k ON m.nid=k.nid SET m.tarold=m.tar, m.tar=k.tar_cust_mn WHERE m.tid IN (3,4) AND k.type='MN';
+/* tid = [5] агентские тарифы А2 */
+UPDATE mtsTar m JOIN komstarCode k ON m.nid=k.nid SET m.tarold=m.tar, m.tar=k.tar WHERE m.tid IN (5) AND k.type='MN';
+/* tid = [10,12,13,14,15,16,18,19,20,21,22,23,24,30,31]  */
+UPDATE mtsTar m JOIN komstarCode k ON m.nid=k.nid SET m.tarold=m.tar, m.tar=k.tar_cust_mn WHERE m.tid IN (10,12,13,14,15,16,18,19,20,21,22,23,24,30,31) AND k.type='MN';
+
+/*
+10 = КМС-ЦЕНТР
+12 = Telia (Эстония)
+13 = ЦМБТ(1304)
+14 = Энергокомплекс(1305)
+15 = Эйкорн(1306)
+16 = Токио(1307)
+18 = РЕСО-Гарантия(1309)
+19 = Морбизнесцентр(1310)
+20 = Калинка ДЕЗ(1311)
+21 = Интек Аналитика(1312)
+22 = Зозуль О.А. ИП(1313)
+23 = БОСА(1314)
+24 = АльтКонсалт(1315)
+30 = Юр-лица ТЦУ
+31 = Хухтамаки(1320)
+17= ФГУП Морспасслужба(1308)(tid=17) пропускаем,
+*/

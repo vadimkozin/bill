@@ -1,114 +1,20 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-pre billing:
-
-2016-07-01
-1) bill.py      - первичная обработка и загрузка в БД данных телефонии из SMG1, SMG2, radius
-2) new_bill.py  - расчёт, результат в отдельных полях БД (для сравнения с расчётом access)
-.. update 'redirected call' one time in month
-3) access       - расчёт, результат в полях по умолчанию (cid, min, sum,..)
-4) bill2.reports.py   - итоги и отчёты для ООО РСС
-5) num4gorod.py - заполняет поле fm3: 626xxxx 642xxxx 710xxxx 627xxxx 81xxxxx - для повремёнки
-6) traf_stat.py - раз в квартал - итоги по инет/тел
-
-ps.
- 2016_09 часть городских из smg2 перешла на smg1: select * from Y2016M09 where dtr='rsi' and fmx like '8499642%'
- надо их добавить в биллинг.
-
- 2019-08-01
- update Y2019M07 set sec=5, f4='+' where info='redirected call' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
- Появились расхождения в минутах у РСС и МТС. Сравнение данных МТС и РСС показало, что у МТС есть вызовы, которые в наших
- данных SMG промаркированы как info='redirected call'. У нас такие вызова sec=0, у МТС>0.
- redirected call - это когда в телефоне звучит 'Абонент временно недоступен'
-
- 2019-09-01
- update Y2019M08 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2019-10-01
- update Y2019M09 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2019-11-01 (108 rows)
- update smg2.Y2019M10 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2019-12-01 (77 rows)
- update smg2.Y2019M11 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-01-01 (122 rows)
- update smg2.Y2019M12 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-02-02 ( 82 rows)
- update smg2.Y2020M01 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-03-01 ( 32 rows)
- update smg2.Y2020M02 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-04-02 ( 47 rows)
- update smg2.Y2020M03 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-05-01 ( 8 rows)
- update smg2.Y2020M04 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-06-01 ( 33 rows)
- update smg2.Y2020M05 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-07-01 ( 50 rows)
- update smg2.Y2020M06 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-08-01 ( 37 rows)
- update smg2.Y2020M07 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
- 2020-09-01 (  30 rows)
- update smg2.Y2020M08 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2020-11-01 ( 38 rows)
- update smg2.Y2020M10 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2020-12-01 ( 21 rows)
- update smg2.Y2020M11 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2021-01-12 ( 9 rows)
- update smg2.Y2020M12 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2021-02-01 ( 0 rows)
- update smg2.Y2021M01 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2021-03-01 ( 6 rows)
- update smg2.Y2021M03 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2021-04-01 ( 5 rows)
- update smg2.Y2021M04 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2021-05-01 ( 3 rows)
- update smg2.Y2021M05 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2021-06-01 ( 2 rows)
- update smg2.Y2021M06 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2021-07-01 ( 3 rows)
-update smg2.Y2021M07 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
-2021-09-01 ( 38 rows )
-update smg2.Y2021M08 set sec=5, f4='+' where info='redirected call' and dtr='mts' and cause='16' and sec=0 and `to` like '89%' and fm like '849%';
-
+Загрузка данных из SMG в биллинг
 """
-import os
-import sys
-import optparse
-import logging
-import MySQLdb
-import traceback
-import time
 import re
+import time
+import logging
+import pymysql
+import optparse
+import traceback
+from cfg import cfg, ini
+from modules import codedef
+from modules import utils as ut
+from modules.progressbar import Progressbar
 
-from modules import cfg              # конфиг
-from modules import codedef          # коды СПС
-from modules.progressbar import Progressbar     # прогресс-бар
-import ini
-
-# log = 0  # handle log
-root = os.path.realpath(os.path.dirname(sys.argv[0]))
-flog = "{root}/log/{file}".format(root=root, file='load.log')
+flog = cfg.paths['logging']['load']    # лог-файл
 
 
 def date_first_day_month(table):
@@ -206,7 +112,7 @@ class Calendar(object):
     def __init__(self, dsn, table):
         self.year = int(table[1:5])     # table = Y2013M09
         self.month = int(table[6:8])
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
         cur = db.cursor()
         sql = "select cal from `calendar`.`calendar` where `year`={0:d} and `month`={1:d}".format(self.year, self.month)
         cur.execute(sql)
@@ -353,7 +259,7 @@ class Billing(object):
         :param dsn: dsn-param to database
         :rtype : None
         """
-        self.db = MySQLdb.Connect(**dsn)
+        self.db = pymysql.Connect(**dsn)
         self.cur = self.db.cursor()
         self.table = table
         self.__preparetable__(table, tab_sample)
@@ -401,7 +307,7 @@ class Billing(object):
         :param info: инфо для логирования
         :return: количество изменённых записей
         """
-        db = MySQLdb.Connect(**dsn_tel)
+        db = pymysql.Connect(**dsn_tel)
         cur_tel = db.cursor()
         cur_bill = self.cur
         # хэш 626-х номеров Речсвязьсервис
@@ -452,7 +358,7 @@ class Number811(object):
         saved all numbers 811xxxx
         """
         self.numbers = []
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
         cur = db.cursor()
         # code + tariff
         sql = "select c.id, c.clid, c.cid, c.org, c.simple, c.name, c.zona, t.tar2008, t.tar0820, t.tarW" \
@@ -522,7 +428,7 @@ class Numbers(object):
         saved all numbers: xxxxxxx
         """
         self.n811 = n811
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
         cur = db.cursor()
         # current
         sql = "select number, cid from telefon.tel where number like '_______'"
@@ -629,7 +535,7 @@ class Number626(object):
         :param table: ex. Y2013M08
         saved all current+history numbers 626xxxx
         """
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
         cur = db.cursor()
         # current
         sql = "select number, cid from telefon.tel where number like '626%'"
@@ -689,7 +595,7 @@ class Number710(object):
         :param table: ex. Y2013M08
         saved all current+history numbers 710xxxx + 627xxxx
         """
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
         cur = db.cursor()
         # current
         sql = "select number, cid from telefon.tel where number like '710%' or number like '627%' "
@@ -738,7 +644,7 @@ class FindCallRadius(object):
         :param dsn: dsn-dict for access to db radius
         :param table: ex. Y2013M08
         """
-        self.db = MySQLdb.Connect(**dsn)
+        self.db = pymysql.Connect(**dsn)
         self.cur = self.db.cursor()
         self.table = table  # Y2013M09
         self.table_rad = Radius.table_rad(table, prefix=prefix)
@@ -833,15 +739,15 @@ class FindCallM200(object):
                 if copy:
                     self.db = self.copy_to_local(dsn_rem, dsn_loc, table_rem=table, table_loc=self.table)
                 else:
-                    self.db = MySQLdb.Connect(**dsn_loc)
+                    self.db = pymysql.Connect(**dsn_loc)
                 self.cur = self.db.cursor()
 
             else:
                 self.table = "mp12." + table        # mp12.Y2013M09
-                self.db = MySQLdb.Connect(**dsn_rem)
+                self.db = pymysql.Connect(**dsn_rem)
                 self.cur = self.db.cursor()
 
-        except MySQLdb.Error as e:
+        except pymysql.Error as e:
             log.warning('FindCallM200: ' + str(e))
             print(e)
             raise RuntimeError('Error in FindCallM200, local MySQL server not load!')
@@ -857,7 +763,7 @@ class FindCallM200(object):
         """
 
         # local
-        dbl = MySQLdb.Connect(**dsn_loc)
+        dbl = pymysql.Connect(**dsn_loc)
         curl = dbl.cursor()
         curl.execute("DROP TABLE IF EXISTS {table}".format(table=table_loc))
         curl.execute("CREATE TABLE {table} ("
@@ -872,7 +778,7 @@ class FindCallM200(object):
                      " ) ENGINE=MyISAM".format(table=table_loc))
 
         # remote
-        dbr = MySQLdb.Connect(**dsn_rem)
+        dbr = pymysql.Connect(**dsn_rem)
         curr = dbr.cursor()
 
         sql = "select id,dt,fm,fmx,`to`,sec,eq from mp12.`{table}` where sec>0 and length(`fm`)>=7".format(table=table_rem)
@@ -986,7 +892,7 @@ class M200(object):
         :param numb: object Numbers
         :param stat: object Stat
         """
-        self.db = MySQLdb.Connect(**dsn)
+        self.db = pymysql.Connect(**dsn)
         self.cur = self.db.cursor()
         self.table = table
         self.bill = bill
@@ -1021,6 +927,7 @@ class M200(object):
 
                 sql = "update mp12.`{table}` set f1='+' where id={id:d}".format(table=self.table, id=idd)
                 self.cur.execute(sql)
+
                 self.bill.insert(self.table, dt=dt, fm=fm, to=to, fmx=fmx, tox=tox, sec=sec, eq=eq, link=link,
                                      cause=cause, l1=l1, l2=l2, stat='-', sts=sts, b='-', ok='-', cid=0, eqid=idd)
                 update += 1
@@ -1041,7 +948,7 @@ class Smg(object):
         :param numb: object Numbers
         :param stat: object Stat
         """
-        self.db = MySQLdb.Connect(**dsn)
+        self.db = pymysql.Connect(**dsn)
         self.cur = self.db.cursor()
         self.table = table
         self.table_rad = Radius.table_rad(table)
@@ -1154,7 +1061,8 @@ class Smg642(object):
         :param numb: object Numbers
         :param stat: object Stat
         """
-        self.db = MySQLdb.Connect(**dsn)
+        self.dsn = dsn
+        self.db = pymysql.Connect(**dsn)
         self.cur = self.db.cursor()
         self.table = table
         # self.table_rad = Radius.table_rad(table)
@@ -1213,6 +1121,9 @@ class Smg642(object):
         step, current, records, update = (0, -1, self.cur.rowcount, 0)
         bar = Progressbar(info=info, maximum=self.cur.rowcount)
 
+        conn_update = pymysql.Connect(**self.dsn)
+        cur_update = conn_update.cursor()
+
         if self.cur.rowcount > 0:
             for idd, dt, fm, fmx, to, tox, sec, str_, dtr, cause, f1, f2 in self.cur:
                 step += 1
@@ -1228,7 +1139,8 @@ class Smg642(object):
                     sql = "update {base}.`{table}` set f1='+', f2='{stat}', stat='{sts}', cid={cid:d} " \
                           " where id={idd}".format(base=base, table=self.table, stat=stat, sts=sts, cid=cid, idd=idd)
 
-                    self.cur.execute(sql)
+                    cur_update.execute(sql)
+
                     link = 'smg2_' + p
                     #if cid == 58:
                     #    fm = fmr    # (internal number sport)
@@ -1298,6 +1210,9 @@ class Smg642(object):
         step, current, records, update = (0, -1, self.cur.rowcount, 0)
         bar = Progressbar(info=info, maximum=self.cur.rowcount)
 
+        conn_update = pymysql.Connect(**self.dsn)
+        cur_update = conn_update.cursor()
+
         if self.cur.rowcount > 0:
             for idd, dt, fm, fmx, to, tox, sec, str_, dtr, cause, f1, f2 in self.cur:
                 step += 1
@@ -1312,7 +1227,8 @@ class Smg642(object):
                     sql = "update {base}.`{table}` set f3='{f3}', f2='{stat}', stat='{sts}', cid={cid:d} " \
                           " where id={id:d}".format(base=base, table=self.table, f3=f3, stat=stat, sts=sts, cid=cid, id=idd)
 
-                    self.cur.execute(sql)
+                    cur_update.execute(sql)
+
                     link = 'smg2_' + p
 
                     self.bill.insert(self.table, dt=dt, fm=fm, to=to, fmx=fmx, tox=tox, sec=sec, p=p, op=op, eq=eq,
@@ -1340,7 +1256,7 @@ class Radius(object):
         :param table: table (Y2013M09)
         :param numb: object Numbers
         """
-        self.db = MySQLdb.Connect(**dsn)
+        self.db = pymysql.Connect(**dsn)
         self.cur = self.db.cursor()
         self.table = table
         self.table_rad = Radius.table_rad(table, prefix='A3')
@@ -1502,7 +1418,7 @@ class ReplaceNumber(object):
         :param table: table, example Y2013M09
         :param numb: object Numbers
         """
-        self.db = MySQLdb.Connect(**dsn)
+        self.db = pymysql.Connect(**dsn)
         self.cur = self.db.cursor()
         self.table = table
         self.numb = numb
@@ -1621,7 +1537,7 @@ class ReplaceNumber(object):
 def setstat_smg(info, dsn, table, stat, all=True):
     """ set stat (vz,mg,mn,gd) in smg.Y2013M10
     """
-    db = MySQLdb.Connect(**dsn)
+    db = pymysql.Connect(**dsn)
     cur = db.cursor()
     t1 = time.time()
     sql = "select id, `to` from {table} where dtr='mts'".format(table=table)
@@ -1645,7 +1561,7 @@ def setstat_smg(info, dsn, table, stat, all=True):
 def setstat_bill(info, dsn, table, stat, all=True, where=''):
     """ set sts (vz,mg,mn,gd) in bill.Y2013M10
     """
-    db = MySQLdb.Connect(**dsn)
+    db = pymysql.Connect(**dsn)
     cur = db.cursor()
     t1 = time.time()
     sql = "select id, `to` from {table} where id>0".format(table=table)
@@ -1696,7 +1612,7 @@ class TarMTC(object):
     def _read_(self):
         """ read tariff MTC to: self.names, self.codes, self.tariff
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cur = db.cursor()
         # codes
         sql = "select `nid`, `type`, `name`, `zona`, `code1`, `code2`, `tar` from {table}".format(table=self.tabcode)
@@ -1915,7 +1831,7 @@ def _add_komstar_code():
     """
     add Rossia_mob-1 .. Rossia_mob-6 to komstarCode (6 records)
     """
-    db = MySQLdb.Connect(**cfg.dsn_tar)
+    db = pymysql.Connect(**cfg.dsn_tar)
     cur = db.cursor()
     table = 'komstarCode'
     tmax = [0, 2.94, 4.20, 5.60, 6.00, 7.00, 7.50]
@@ -1940,7 +1856,7 @@ def _add_komstar_tar():
     """
     add 8(cust)*6(zone) = 48 records to tarif.komstarTar
     """
-    db = MySQLdb.Connect(**cfg.dsn_tar)
+    db = pymysql.Connect(**cfg.dsn_tar)
     cur = db.cursor()
     table = 'komstarTar'
     cust = [84, 273, 549, 760, 787, 952, 953, 957]
@@ -1977,7 +1893,7 @@ def _testMTC(otm):
     otm: object TarMTC
     """
 
-    db = MySQLdb.Connect(**cfg.dsn_bill)
+    db = pymysql.Connect(**cfg.dsn_bill)
     cur = db.cursor()
     table = 'Y2013M11'
     sql = "select id, cid, to2 num, sec, `min` from {table} where op='m' limit 100".format(table=table)
@@ -2008,7 +1924,7 @@ def set_cust_type(dsn_cust, dsn_bill, table, where):
     flist = dict()
 
     # список клиентов - физлиц
-    db = MySQLdb.Connect(**dsn_cust)
+    db = pymysql.Connect(**dsn_cust)
     cur = db.cursor()
     sql = "SELECT `CustID` FROM `customers`.`Cust` WHERE `CustType`='f'"
     cur.execute(sql)
@@ -2017,7 +1933,7 @@ def set_cust_type(dsn_cust, dsn_bill, table, where):
         flist[cid] = cid
 
     # разделение клиентов по ризнаку uf (u|f)
-    db = MySQLdb.Connect(**dsn_bill)
+    db = pymysql.Connect(**dsn_bill)
     cur = db.cursor()
     sql = "SELECT id, cid FROM {table} WHERE {where}".format(table=table, where=where)
     cur.execute(sql)
@@ -2032,15 +1948,21 @@ def set_cust_type(dsn_cust, dsn_bill, table, where):
 
 
 if __name__ == '__main__':
-    p = optparse.OptionParser(description="mark numbers 626xxxx in table: smg.YxxxxMxx (ex.Y2013M09) for billing",
-                              prog="num626.py", version="0.1a", usage="num626.py --tab=table [--log=namefile]")
+    p = optparse.OptionParser(description="load calls from smg.YxxxxMxx (ex.Y2013M09) for billing",
+                              prog="load.py", version="0.1a", usage="load.py --year=year --month=month [--log=namefile]")
 
-    p.add_option('--tab', '-t', action='store', dest='table', help='table, ex.Y2013M09')
-    p.add_option('--log', '-l', action='store', dest='log', default='log/load.log', help='logfile')
+    p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
+    p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
+    p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
 
     opts, args = p.parse_args()
-    opts.table = ini.table  # Y2022M03
-    opts.log = flog
+
+    # параметры в командной строке - в приоритете
+    if not (opts.year and opts.month):
+        opts.year = ini.year
+        opts.month = ini.month
+
+    opts.table = ut.year_month2period(year=opts.year, month=opts.month)
 
     if not opts.table or not opts.log:
         print(p.print_help())
@@ -2067,46 +1989,9 @@ try:
     # oper:(m=MTS b=BEELINE f=MEGAFON g=FGUP-RSI c=CITYLAN x=MGTS r=RSS)
 
     smg2 = Smg642(dsn=cfg.dsn_smg2, bill=bill, table=opts.table, numb=numb, stat=stat)
-    # smg2.setstat(where="`f1`='+' AND `dtr` = 'mts' AND `stat`='-'", info='update_stat')
-
-    smg2.add(src_num=('7499642____%', '%642____%', '81252__', '8117___', '710%', '627%'), dtr_trank=('mts', 'mrp'), info='smg2.642_MTS', eq='smg2_642q', op='q')  # p=q RSS/MTS:642xxxx    #!smg2.add(src_num=('81_____',), dtr_trank=('bee_rss',), info='smg2.811_BLINE', eq='smg2_811b', op='b')                       # p=b RSS/BEE:642xxxx
-    # RSS/MTS:(627+710)/6428495 - ушло на МТС и закрыто 6428495 (ВПН), но клиентам тоже нужно выставить как от megafon (p=f)
-    # op='q' RSS/MTS(642xxxx); (дублируем звонок в базе: RSS/MTS(p=q) - это ВПН и Мегафон (p=f) для клиентов)
-    smg2.add2(where="fmx like '%6428495' and (fm like '%627____' or fm like '%710____') and dtr in ('mts','mrp')",
-              info='smg2.642_MFON', eq='smg2_710f', op='q', p='f', f3='f', p2='#')
-
-    # 2017_04. внутренние номера: 15801/7108057 15820/6275272, 15821/6275273, 15822/7107371, 15823/7107172,
-    #          15824/6275285, 25360/6428464
-    smg2.add(src_num=('15801', '15820', '15821', '15822', '15823', '15824', '25360'), dtr_trank=('mts', 'mrp'), info='smg2.15820_MTS', eq='smg2_15820', op='q')
-
-    # 2017_04. внутренний номер 25360 вместо 6428464
-    smg2.add(src_num=('25360',), dtr_trank=('mts', 'mrp'), info='smg2.25360_MTS', eq='smg2_25360', op='q')
-
-    # 2019_07. внутренний номер 25364 вместо 6428464
-    smg2.add(src_num=('25364',), dtr_trank=('mts', 'mrp'), info='smg2.25364_MTS', eq='smg2_25364', op='q')
-
-    # 2017_05. внутренний номер 25355  вместо 8(499)6428481
-    smg2.add(src_num=('25355',), dtr_trank=('mts', 'mrp'), info='smg2.25355_MTS', eq='smg2_25355', op='q')
-
-    # 2017_07. внутренний номер 25331 c 12-07-2017 вместо 8(499)6428466
-    smg2.add(src_num=('25331',), dtr_trank=('mts', 'mrp'), info='smg2.25331_MTS', eq='smg2_25331', op='q')
-
-    # 2017_04 трафик с 15820/6275272 15821/6275273 15822/7107371 нужно выставить в кучке 627/710
-    smg2.add2(where="fmx like '%6428495' and (fm in ('15820','15821','15822')) and dtr in ('mts','mrp') and sec>0",
-              info='smg2.642_MFON', eq='smg2_710f', op='q', p='f', f3='f', p2='#')
-    
-    # 2019_07 трафик с 15824/6275285/(84996428000 | 84996428495) буду выставить в кучке 627/710
-    smg2.add2(where="(fm in ('15824')) and fmx in ('84996428000') and dtr in ('mts','mrp') and sec>0",
-              info='smg2.627_MTS', eq='smg2_710f', op='q', p='f', f3='f', p2='#')
-
-    smg2.add(src_num=('7495626%', '8495626%', '626%'), dtr_trank=('mts', 'mrp'), info='smg2.626_MTS', eq='smg2_626q', op='q')  # p=q
-    smg2.add(src_num=('81_____',), dtr_trank=('mts', 'mrp'), info='smg2.811_MTS', eq='smg2_811q', op='q')    # p=q
-    # cisco+radius больше нет с Y2017M01 24-25 янв. И трафик с 710/627 пустили через asterisk
-    # c asterisk 2 номера 710xxxx Андрей завернул через SMG2. Это местный трафик на пост. номера
-    # (fm like '710____'  or fm like '8495710____' ) and (str='asterisk' and dtr='asterisk');
-    # ast_710city - петля с asterisk на asterisk для проброса 710-х номеров через SMG2
-    smg2.add2(where="(fm like '%710____'  or fm like '%627____') and (str='asterisk' and dtr='asterisk')",
-              info='smg2.710_GD_CITY', eq='ast_710city', op='c', p='c', f3='f', p2='+')  # ast_710city
+    smg2.add(src_num=('7499642____%', '%642____%', '81252__', '8117___', '710%', '627%'), dtr_trank=('mts', 'mrp'), info='smg2.642_MTS', eq='smg2_642q', op='q')
+    smg2.add(src_num=('7495626%', '8495626%', '626%'), dtr_trank=('mts', 'mrp'), info='smg2.626_MTS', eq='smg2_626q', op='q')
+    smg2.add(src_num=('81_____',), dtr_trank=('mts', 'mrp'), info='smg2.811_MTS', eq='smg2_811q', op='q')
 
     # 2021-12-01 added customers from CTS
     smg2.add(operator='rlike',
@@ -2115,7 +2000,7 @@ try:
              dtr_trank=('mts', 'mrp'), info='smg2.CTS_MTS', eq='smg2_CTS', op='q')
 
     # 2022-02-01 added customers from TCU
-    smg2.add2(where="(str='tcukom' and dtr='mts')", info='smg2.TCU_MTS', eq='smg2_TCU', op='q', p='q')
+    smg2.add2(where="(str='tcukom' and dtr='mts')", info='smg2.TCU_MTS', eq='smg2_TCU', op='q', p='q', f3='+')
 
     t2 = time.time()
     print("work: {0:0.2f} sec".format(t2 - t1, ))
@@ -2123,7 +2008,7 @@ try:
 
     log.warning('.')
 
-except MySQLdb.Error as e:
+except pymysql.Error as e:
     log.warning(str(e))
     print(e)
 except RuntimeError as e:

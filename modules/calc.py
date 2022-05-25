@@ -5,7 +5,7 @@
 """
 calc.py - разные функции для вычислений НДС и пр.
 """
-from modules import cfg
+from cfg import cfg
 
 
 def sign(val):
@@ -47,7 +47,7 @@ def nds(val, ndigits=2):
     :param ndigits: количество знаков для округления
     :return: НДС
     """
-    return rnd(val*cfg.ndskoff, ndigits)
+    return rnd(val * cfg.ndskoff, ndigits)
 
 
 def nds2(val, ndigits=2):
@@ -58,7 +58,7 @@ def nds2(val, ndigits=2):
     :return: НДС
     """
     # val * 18/118;  cfg.ndskoff=0.18
-    return rnd(val*cfg.ndskoff/(1+cfg.ndskoff), ndigits)
+    return rnd(val * cfg.ndskoff / (1 + cfg.ndskoff), ndigits)
 
 
 def sum_without_nds(val, ndigits=2):
@@ -69,7 +69,7 @@ def sum_without_nds(val, ndigits=2):
     :return: число без НДС
     """
     # S = Sн / (1+0.18)
-    return rnd(val/(1+cfg.ndskoff), ndigits)
+    return rnd(val / (1 + cfg.ndskoff), ndigits)
 
 
 def sum_with_smart_nds(val, how_calculate_nds='*', ndigits=2):
@@ -83,7 +83,7 @@ def sum_with_smart_nds(val, how_calculate_nds='*', ndigits=2):
     if how_calculate_nds == '*':
         return val
     elif how_calculate_nds == '+':
-        return rnd(val*(1+cfg.ndskoff), ndigits)
+        return rnd(val * (1 + cfg.ndskoff), ndigits)
     elif how_calculate_nds == '-':
         return sum_without_nds(val)
     else:

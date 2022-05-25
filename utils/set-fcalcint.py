@@ -19,7 +19,7 @@ import os
 import sys
 import MySQLdb
 import datetime
-from modules import cfg
+from cfg import cfg
 
 
 def connect(host, user, passwd, db, use_unicode=True, charset='utf8', connect_timeout=5, local_infile=0):

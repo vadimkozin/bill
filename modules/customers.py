@@ -4,8 +4,8 @@
 """
 Клиенты
 """
-import MySQLdb
-from modules import cfg
+import pymysql
+from cfg import cfg
 
 
 class CustReplace(object):
@@ -21,7 +21,8 @@ class CustReplace(object):
         """
         Создание мапы замещающих клиентов
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
+
         cursor = db.cursor()
         sql = "SELECT `cid`, `cid_new` FROM `cust_replace`"
 
@@ -77,7 +78,7 @@ class CustKs(object):
         return self._customers
 
     def create_custlist(self):
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = "SELECT `pid`, `cid`, `tid`, `name` custname, `tel`, `xnumber`, `address` FROM `customers`.`CustKS`" \
               " WHERE LENGTH(`tel`) >3"
@@ -162,7 +163,7 @@ class Cust(object):
         """
         Создание словаря клиентов
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         # sql = "SELECT CustID cid, CustAlias custalias, CustName custname, CustType uf, INN inn, KPP kpp, " \
         #      "`NumDTelRssMtc` dog_rss, `DateDTelRssMtc` dog_date_rss, `NumDTelRsiMtc` dog_rsi," \

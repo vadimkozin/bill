@@ -1,17 +1,21 @@
 # -*- coding: utf-8 -*-
 
 import os
-import MySQLdb
+import pymysql
 import xlsxwriter
-from modules import cfg
+from cfg import cfg, ini
+from modules.progressbar import Progressbar
+from modules import utils as ut
 
 owd = os.getcwd()
 os.chdir('..')
 root = os.getcwd()
 os.chdir(owd)
-path_results = "{root}/results".format(root=root)   # файлы с результатом по МГ/ВЗ (utf-8) для выст_счетов
 
-a2 = dict(name="OOO 'A2-Телеком'", suffix_file='_rss')
+# example document for 2022, 04: {root}/result/2022_04/book/2022_04_book.xlsx
+path_results = "{root}/result".format(root=root)   # файлы с результатом по МГ/ВЗ (utf-8) для выст_счетов
+dir_result = "book"
+a2 = dict(name="OOO 'A2-Телеком'")
 month_names = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь',
                'ноябрь', 'декабрь']
 
@@ -70,13 +74,15 @@ class BillReportXls(object):
     """
     Результат по услугам в виде xls-файла
     """
-    def __init__(self, dsn, year, month, path):
+    def __init__(self, dsn, year, month, path, directory):
         self.dsn = dsn
         self.year = year
         self.month = month
         self.period = '{year:04d}_{month:02d}'.format(year=int(year), month=int(month))  # 2021_01
         self.table = 'Y{year:04d}M{month:02d}'.format(year=int(year), month=int(month))  # Y2021M01
-        self.outfile = "{path}/{period}.{ext}".format(path=path, period=self.period, ext='xlsx')  # 2021_01_rss.xls
+        # self.outfile = "{path}/{period}.{ext}".format(path=path, period=self.period, ext='xlsx')  # 2021_01_rss.xls
+        self.path = path    # {root}/result
+        self.directory = directory  # book
 
     @staticmethod
     def create_formats(workbook):
@@ -115,25 +121,36 @@ class BillReportXls(object):
 
     def create_file(self):
         # создание книги
-        workbook = xlsxwriter.Workbook(self.outfile)
+        path, full_path = ut.get_full_path(year=self.year, month=self.month, path=self.path, directory=self.directory,
+                                           ext='xlsx')
+        ut.makedir(path)
+
+        workbook = xlsxwriter.Workbook(full_path)
         frm = BillReportXls.create_formats(workbook)
+        bar = Progressbar(info="creating: '{file}'".format(file=full_path), maximum=5)
 
         # списки
         book_list = self._get_book_data()
         bookf_list = self._get_bookf_data()
         service_list = self._get_service_data()
         customers_u = self._get_customers_u()
+        bar.update_progress(1)
 
         # лист с итогами
         self._create_main_sheet(workbook, frm, book_list, bookf_list, service_list)
+        bar.update_progress(2)
 
         # лист с актом
         self._create_akt(workbook, frm)
+        bar.update_progress(3)
 
         # листы с детализацией
         self._create_detailed_sheets(workbook, frm, customers_u)
+        bar.update_progress(4)
 
         workbook.close()
+        bar.update_progress(5)
+        Progressbar.go_new_line()
 
     def _create_main_sheet(self, workbook, frm, book_list, bookf_list, service_list):
         """
@@ -198,7 +215,7 @@ class BillReportXls(object):
         :param customer: название клиента
         :return:
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['detailed'].format(table=self.table, cid=cid)
         cursor.execute(sql)
@@ -283,13 +300,10 @@ class BillReportXls(object):
         Делает выборку из БД для книги продаж
         :return: список элементов BookItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['book'].format(year=self.year, month=self.month)
         cursor.execute(sql)
-
-        # period = '{year:04d}_{month:02d}'.format(year=int(self.year), month=int(self.month))  # 2021_01
-        # outfile = "{path}/{period}_results.txt".format(path=self.path_outfile, period=period)
 
         book_list = list()
         for line in cursor:
@@ -305,7 +319,7 @@ class BillReportXls(object):
         Делает выборку из БД для книги продаж для физ-лиц
         :return: список элементов BookItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['book_f'].format(year=self.year, month=self.month)
         cursor.execute(sql)
@@ -324,7 +338,7 @@ class BillReportXls(object):
         Делает выборку из БД для книги услуг (МГ/ВЗ)
         :return: список элементов ServiceItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['serv_u'].format(year=self.year, month=self.month)
         cursor.execute(sql)
@@ -343,7 +357,7 @@ class BillReportXls(object):
         Делает выборку клиентов из книги продаж для юр-лиц
         :return: список элементов CustItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['customers_u'].format(year=self.year, month=self.month)
         cursor.execute(sql)
@@ -522,7 +536,7 @@ class BillReportXls(object):
         :return:
         """
 
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['akt'].format(year=self.year, month=self.month)
         cursor.execute(sql)
@@ -592,5 +606,8 @@ class BillReportXls(object):
 
 
 if __name__ == '__main__':
-    xls = BillReportXls(dsn=cfg.dsn_bill2, year=2021, month=1, path=path_results)
+
+    xls = BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results, directory=dir_result)
     xls.create_file()
+
+    print('.')

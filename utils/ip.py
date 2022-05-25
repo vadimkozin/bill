@@ -13,7 +13,7 @@ https://www.calculator.net/ip-subnet-calculator.html?cclass=b&csubnet=22&cip=192
 
 """
 import MySQLdb
-from modules import cfg
+from cfg import cfg
 
 table_tmp = 'tmp232'
 drop_table_tmp232 = "DROP TABLE IF EXISTS `{table}`;".format(table=table_tmp)

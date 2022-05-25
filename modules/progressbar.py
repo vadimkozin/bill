@@ -33,9 +33,11 @@ class Progressbar(object):
 
 if __name__ == '__main__':
 
+    import time
+
     bar = Progressbar('process', 1000)
-    for i in (100, 150, 1000):
+    for i in (100, 150, 300, 500, 600, 800, 1000):
         bar.update_progress(i)
-        # time.sleep(1)
+        time.sleep(1)
     Progressbar.go_new_line()
 

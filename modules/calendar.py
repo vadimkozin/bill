@@ -4,9 +4,9 @@
 """
 Calendar - производственный календарь по дате определяет время звонка : D N W
 """
-import MySQLdb
+import pymysql
 from datetime import datetime
-from modules import cfg
+from cfg import cfg
 
 
 class Calendar(object):
@@ -14,7 +14,8 @@ class Calendar(object):
     def __init__(self, dsn, table):
         self.year = int(table[1:5])     # table = Y2013M09
         self.month = int(table[6:8])
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
+
         cur = db.cursor()
         sql = "select cal from `calendar`.`calendar` where `year`={0:d} and `month`={1:d}".format(self.year, self.month)
         cur.execute(sql)

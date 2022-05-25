@@ -8,9 +8,9 @@ numbers1 - модуль работы с номерами
  Numbers - городские номера (626xxxx, 642xxxx, 710xxxx, 627xxxx) из telefon.tel
 """
 import re
-import MySQLdb
+import pymysql
 from io import open
-from modules import cfg
+from cfg import cfg
 from modules.func import Func
 
 
@@ -31,7 +31,8 @@ class Number811(object):
         self.numbers[] = dict(id, clid, cid, org, simple_raw, simple, name, zona, tar2008, tar0820, tarW)
         """
         self.numbers = []
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
+
         cur = db.cursor()
         # code + tariff
         sql = "select c.id, c.clid, c.cid, c.org, c.simple, c.name, c.zona, t.tar2008, t.tar0820, t.tarW" \
@@ -120,7 +121,7 @@ class Numbers(object):
         :param n811: instance Number811
         """
         self.n811 = n811
-        db = MySQLdb.Connect(**dsn)
+        db = pymysql.Connect(**dsn)
         cur = db.cursor()
 
         # текущие номера: (поле fSplit - маркирует номера ВПН : + or -)
@@ -306,7 +307,7 @@ class Numreplace(object):
         if load:
             self._load_number_replace()
 
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cur = db.cursor()
         cur.execute("SELECT `number`, `inter`, `cid`, `org` FROM `telefon`.`{table}`".format(table=self.table))
         for line in cur:
@@ -322,7 +323,7 @@ class Numreplace(object):
 
     def _load_number_replace(self):
         # загрузка номеров замены
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cur = db.cursor()
         # cur.execute("truncate table `telefon`.`{table}`".format(table=self.table))
         cur.execute("delete from `telefon`.`{table}`".format(table=self.table))

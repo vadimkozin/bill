@@ -4,9 +4,9 @@
 """
 tarmts - модуль тарификации (МТС)
 """
-import MySQLdb
+import pymysql
 from io import open
-from modules import cfg
+from cfg import cfg
 from modules import codedef
 from modules.func import Func
 from modules import calltype
@@ -60,7 +60,8 @@ class Tarmts(object):
         """
         Чтение тарифов МТС в : names, codes, tariff, tariff2, tarspsmg, taraspsmg
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
+
         cur = db.cursor()
 
         # направления: names['797'] = dict(name='Нижегородская', zona=2, type='MG', tara=0.81, code1='831')
@@ -130,7 +131,7 @@ class Tarmts(object):
         """
         Чтение тарифов МТС в : names, codes, tariff, tarspsmg, taraspsmg
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cur = db.cursor()
 
         # направления: names['797'] = dict(name='Нижегородская', zona=2, type='MG', tara=0.81)

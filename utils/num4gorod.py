@@ -10,7 +10,7 @@ import re
 import MySQLdb
 import datetime
 from modules import progressbar
-from modules import cfg
+from cfg import cfg
 
 # root = os.path.realpath(os.path.dirname(sys.argv[0]))
 owd = os.getcwd()

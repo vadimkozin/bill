@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import os
-import MySQLdb
+import pymysql
 import xlsxwriter
-from modules import cfg
+from cfg import cfg
+from modules import utils as ut
 from modules.progressbar import Progressbar     # прогресс-бар
 
 owd = os.getcwd()
@@ -50,14 +51,18 @@ class BillMestXls(object):
     """
     Результат по местной связи в виде xls-файла
     """
-    def __init__(self, dsn, year, month, path):
+    def __init__(self, dsn, year, month, path, directory):
         self.dsn = dsn
         self.year = year
         self.month = month
         self.period = '{year:04d}_{month:02d}'.format(year=int(year), month=int(month))  # 2022_04
         self.table = 'Y{year:04d}M{month:02d}'.format(year=int(year), month=int(month))  # Y2022M04
-        self.outfile = "{path}/{period}_{suffix}.{ext}".format(path=path, period=self.period, suffix=a2['suffix_file'],
-                                                               ext='xlsx')  # 2022_04_mest.xls
+        # self.outfile = "{path}/{period}_{suffix}.{ext}".format(path=path, period=self.period, suffix=a2['suffix_file'],
+        #                                                        ext='xlsx')  # 2022_04_mest.xls
+        # {root}/result/2022_04/mest/2021_04_mest.xls
+        self.path = path    # {root}/result
+        self.directory = directory  # mest
+
     @staticmethod
     def create_formats(workbook):
         """
@@ -98,7 +103,7 @@ class BillMestXls(object):
         Делает выборку данных из книги местной связи
         :return: список элементов DataItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['mest_data'].format(period=self.period)
         # print(sql)
@@ -118,7 +123,7 @@ class BillMestXls(object):
         Возвращает инфо по списку клиентов
         :return: список элементов CustItem
         """
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['mest_customers'].format(custIds=','.join(cid_list))
         cursor.execute(sql)
@@ -233,7 +238,7 @@ class BillMestXls(object):
         :return:
         """
 
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['mest_detail'].format(table=self.table, cid=cid)
 
@@ -286,11 +291,16 @@ class BillMestXls(object):
         db.close()
 
     def create_file(self):
+        path, full_path = ut.get_full_path(year=self.year, month=self.month, path=self.path, directory=self.directory,
+                                           ext='xlsx')
+        ut.makedir(path)
 
         bar = Progressbar(info='mest.Prepare data', maximum=3)
 
         # создание книги
-        workbook = xlsxwriter.Workbook(self.outfile)
+        # workbook = xlsxwriter.Workbook(self.outfile)
+        workbook = xlsxwriter.Workbook(full_path)
+
         frm = BillMestXls.create_formats(workbook)
 
         # итоги по клиентам

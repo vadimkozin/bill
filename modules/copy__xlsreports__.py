@@ -3,7 +3,7 @@
 import os
 import MySQLdb
 import xlsxwriter
-from modules import cfg
+from cfg import cfg
 
 owd = os.getcwd()
 os.chdir('..')

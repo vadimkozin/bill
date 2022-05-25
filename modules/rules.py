@@ -13,8 +13,8 @@ rules - дополнительные бизнес-правила. Правила
 
 """
 import re
-import MySQLdb
-from modules import cfg
+import pymysql
+from cfg import cfg
 from modules import link
 
 
@@ -41,7 +41,7 @@ class Rules(object):
     def __init__(self, dsn, table):
         self.dsn = dsn
         self.table = table
-        self.db = MySQLdb.connect(**self.dsn)
+        self.db = pymysql.connect(**self.dsn)
         self.cur = self.db.cursor()
         self.rules = []
         self._read_rules()

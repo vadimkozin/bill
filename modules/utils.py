@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import datetime
 import calendar
-import MySQLdb
+import pymysql
+import threading
+import time
 from io import open
 import subprocess
-from modules import cfg
+from cfg import cfg
 from fnmatch import fnmatch
 from modules.diskwalk_api import diskwalk
 
@@ -106,7 +109,7 @@ def get_operator_files(year, month, path, reports, files):
             if rep not in files[srv]:
                 files[srv][rep] = dict()
             files[srv][rep] = "{path}/{year}_{month:02d}_{service}_{report}.{ext}".format(
-                path=path, year=year, month=month, service=srv, report=xx['reports'][rep], ext=xx['ext'])
+                path=path, year=int(year), month=int(month), service=srv, report=xx['reports'][rep], ext=xx['ext'])
     return files
 
 
@@ -118,7 +121,7 @@ def create_table(dsn, filename, table):
     :param table: name creating table
     :return:
     """
-    db = MySQLdb.Connect(**dsn)
+    db = pymysql.Connect(**dsn)
     cur = db.cursor()
     f = open(filename, encoding="utf-8")
     sql = f.read().replace('_TABLE_CREATE_', table, 2)
@@ -135,7 +138,7 @@ def create_table_if_no_exist(dsn, table, tab_template):
     :param table: создаваемая таблица
     :param tab_template: шаблон создания таблицы (sql-запрос в файле)
     """
-    db = MySQLdb.Connect(**dsn)
+    db = pymysql.Connect(**dsn)
     cursor = db.cursor()
 
     created = False
@@ -211,7 +214,7 @@ def year_month2period(year, month, month_char='M'):
     :param month_char: символ месяца: M or _
     :return:  Y2015M11 or Y2015_11
     """
-    return "Y{year:04d}{month_char}{month:02d}".format(year=year, month=month, month_char=month_char)
+    return "Y{year:04d}{month_char}{month:02d}".format(year=int(year), month=int(month), month_char=month_char)
 
 
 def formatdate(date, separator='-'):
@@ -248,9 +251,9 @@ def dateperiod(year, month):
     :param month: месяц
     :return: (date1, date2, date3)
     """
-    date2 = datetime.date(year, month, 1)
+    date2 = datetime.date(int(year), int(month), 1)
     date1 = date2 - datetime.timedelta(days=1)  # число за 1 день до date2
-    date3 = datetime.date(year, month, calendar.monthrange(year, month,)[1])
+    date3 = datetime.date(int(year), int(month), calendar.monthrange(int(year), int(month),)[1])
     return date1, date2, date3
 
 
@@ -312,7 +315,7 @@ def nds(val, ndigits=2):
     :param ndigits: количество знаков для округления
     :return: НДС
     """
-    return rnd(val*cfg.ndskoff, ndigits)
+    return rnd(val * cfg.ndskoff, ndigits)
 
 
 def nds2(val, ndigits=2):
@@ -323,7 +326,7 @@ def nds2(val, ndigits=2):
     :return: НДС
     """
     # nds_from_number = number * 20/120;  cfg.ndskoff=0.20
-    return rnd(val*cfg.ndskoff/(1+cfg.ndskoff), ndigits)
+    return rnd(val * cfg.ndskoff / (1 + cfg.ndskoff), ndigits)
 
 
 def get_file_rows(filename):
@@ -332,3 +335,72 @@ def get_file_rows(filename):
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=open('/dev/null'))
     out = p.stdout.read()
     return int(out.strip().split()[0])
+
+
+def get_full_path(year, month, path, directory, ext):
+    """
+    Формирует полный путь к файлу по шаблону: {path}/{period}/{directory}/{filename}_{suffix}.{ext}
+    где period = {year}_{month}, напр. 2021_01
+    suffix = directory, напр. book
+    :param year: год
+    :param month: месяц
+    :param path: путь до периода
+    :param directory: директория после периода
+    :param ext: расширение файла
+    :return: (путь без файла, полный путь):  (/tmp/abc, /tmp/abc/filename.txt)
+    """
+    suffix = directory
+
+    period = '{year:04d}_{month:02d}'.format(year=int(year), month=int(month))  # 2021_01
+    filename = "{period}_{suffix}.{ext}".format(period=period, suffix=suffix, ext=ext)  # 2021_01_book.xls
+    path = "{path}/{period}/{directory}".format(path=path, period=period, directory=directory)
+    result = "{path}/{filename}".format(path=path, filename=filename)  # path/2021_01/book/2021_01_book.xlsx
+
+    return path, result
+
+
+class ProgressTime(object):
+    """
+    Прогресс времени
+    time_start: точка отсчёта
+    pt = ProgressTime(time.time())
+    diff = pt.timer(time.time())
+    """
+    def __init__(self, time_start):
+        self.time_start = time_start
+
+    """ возвращает сколько прошло времени с точки отсчёта """
+    def timer(self):
+        return time.time() - self.time_start
+
+
+class ProgressChar(object):
+    """ Прогресс в виде меняющегося символа """
+    """
+        Запуск символьного прогресса с интервалом 0.25сек и отменой через 9 секунд: 
+        p = ProgressChar(0.25)
+        p.go()
+        threading.Timer(9.0, p.cancel).start()
+    """
+    def __init__(self, interval):
+        self.interval = interval
+        self.current = 0
+        self.timer = None
+
+    def go(self):
+        chars = ('-', '|', '/', '\\', ':)', '|', '/')
+        sys.stdout.write('\r' + chars[self.current])
+        sys.stdout.flush()
+        self.current += 1
+        if self.current >= len(chars):
+            self.current = 0
+
+        self.cancel()
+        self.timer = threading.Timer(self.interval, self.go)
+        self.timer.start()
+
+    def cancel(self):
+        if self.timer:
+            self.timer.cancel()
+
+

@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # from __future__ import unicode_literals
-import sys
-import os
 from urllib.request import urlopen
 import ssl
 import time
 import datetime
 import logging
-import MySQLdb
+import pymysql
 import traceback
 import re
 from io import open
 import os.path as path
 
-from modules import cfg
+from cfg import cfg
 from modules.func import Func
 
 """
@@ -107,7 +105,8 @@ class Codedef(object):
         :param tabcode: таблица с def-кодами tarif.defCode
         """
         self.dsn = dsn                      # dsn подключения к базе
-        self.db = MySQLdb.Connect(**dsn)    # db - активная ссылка на базу
+        self.db = pymysql.Connect(**dsn)    # db - активная ссылка на базу
+
         self.cur = self.db.cursor()         # cur - курсор
         self.tabCode = tabcode              # таблица с кодами (tarif.defCode)
         
@@ -420,7 +419,7 @@ class Codedef(object):
         t = time.time()
         re_num = re.compile('^\d\d\d')
         re_patch = re.compile('Московская область; Москва\|Московская область; Москва$')
-        db = MySQLdb.Connect(**self.dsn)
+        db = pymysql.Connect(**self.dsn)
         cur = db.cursor()
 
         # Инициализация таблицы defCode
@@ -625,7 +624,7 @@ if __name__ == '__main__':
         # запись кодов ВЗ-связи в текстовый файл 
         # cdef.write_codevz_file(filename='./test/def_vz.txt', filename2='./test/def_vz_initel.txt')
 
-    except MySQLdb.Error as e:
+    except pymysql.Error as e:
         log.warning(str(e))
         xprint(e)
     except Exception as e:
