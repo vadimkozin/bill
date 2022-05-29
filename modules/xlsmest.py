@@ -11,7 +11,12 @@ owd = os.getcwd()
 os.chdir('..')
 root = os.getcwd()
 os.chdir(owd)
-path_results = "{root}/res_mest".format(root=root)   # файлы с результатом по местной связи (utf-8)
+# path_result = "{root}/res_mest".format(root=root)   # файлы с результатом по местной связи (utf-8)
+
+path_result = cfg.paths['result']       # корень для результатов
+dir_result = cfg.paths['mest']['dir']   # под-директория для файлов с местной связью (очень мало)
+# flog = cfg.paths['logging']['mest']     # лог-файл
+
 
 a2 = dict(name="OOO 'A2-Телеком'", suffix_file='mest')
 
@@ -106,7 +111,6 @@ class BillMestXls(object):
         db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         sql = cfg.sqls['mest_data'].format(period=self.period)
-        # print(sql)
         cursor.execute(sql)
 
         items = list()
@@ -343,5 +347,5 @@ class BillMestXls(object):
 
 
 if __name__ == '__main__':
-    xls = BillMestXls(dsn=cfg.dsn_bill2, year=2022, month=1, path=path_results)
+    xls = BillMestXls(dsn=cfg.dsn_bill2, year=2022, month=4, path=path_result, directory=dir_result)
     xls.create_file()

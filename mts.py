@@ -12,11 +12,9 @@ rss_bookf   - книга извещений для физлиц
 rss_servf   - подробно услуги (МГ ВЗ) для книги извещений
 rss_akt     - акт выполненных работ
 +
-файлы для выгрузки оператору на портал : result/mts/rss/2022_04/cp1251
+файлы для выгрузки оператору на портал : result/2022_04/mts/cp1251/*.csv
 
 """
-import os
-import sys
 import optparse
 import logging
 import pymysql
@@ -35,7 +33,7 @@ pathsql = "{root}/sql/reports/".format(root=cfg.root)   # файлы sql-ком�
 path_result = cfg.paths['result']       # корень для результатов
 dir_mts = cfg.paths['mts']['dir']       # для файлов (csv) на выгрузку оператору МТС (utf-8, cp1251)
 dir_book = cfg.paths['book']['dir']     # для файлов (xlsx) с Книгой счетов и Актом по МГ/ВЗ
-flog = cfg.paths['logging']['report']   # лог-файл
+flog = cfg.paths['logging']['mts']      # лог-файл
 
 stat2service = {'M': 'MG', 'S': 'MG', 'W': 'MN', 'Z': 'VZ'}         # мапа stat -> service
 
@@ -1051,9 +1049,9 @@ class OperatorDataRss(OperatorData):
         tab1 = cfg.operator[oper]['tab1']       # rss - исходная итоговая таблица
         cds = Codemts(dsn=cfg.dsn_tar, table='komstarCode')     # cds['Австрия'] => 43
 
-        filename2 = '_2.'.join(filename.split('.'))  # файл без НДС (всего 8 полей) - в регламенте формат2
         f = open(filename, "wt", encoding='utf8')
-        f2 = open(filename2, "wt", encoding='utf8')
+        # filename2 = '_2.'.join(filename.split('.'))  # файл без НДС (всего 8 полей) - в регламенте формат2
+        # f2 = open(filename2, "wt", encoding='utf8')
 
         sql = "SELECT `serv`, `dir`, sum(`sumraw`) `sumraw`, sum(`summin`) `summin` FROM `{table}` " \
               "WHERE `year`='{year}' AND `month`='{month}' GROUP BY `serv`, `dir`".format(
@@ -1077,20 +1075,23 @@ class OperatorDataRss(OperatorData):
             sum_sum += sumraw; sum_nds += nds; sum_vsego += sumraw+nds
             sumraw, nds, serv = (ut.dec(sumraw), ut.dec(nds), cfg.servrus[serv])
             code = cds.name2code(dir)
-            st = "{year};{month};{serv};{dir};{code};{min};{sum};{nds};{account}".format(
-                year=opts.year, month=opts.month, serv=serv, dir=dir, code=code, min=summin, sum=sumraw, nds=nds,
-                account=cfg.operator[oper]['account']
-            )
-            f.write(st + '\n')
 
+            # ранее формат файла был с НДС
+            # st = "{year};{month};{serv};{dir};{code};{min};{sum};{nds};{account}".format(
+            #     year=opts.year, month=opts.month, serv=serv, dir=dir, code=code, min=summin, sum=sumraw, nds=nds,
+            #     account=cfg.operator[oper]['account']
+            # )
+            # f.write(st + '\n')
+
+            # в новом формате НДС убрали
             st = "{year};{month};{serv};{dir};{code};{min};{sum};{account}".format(
                 year=opts.year, month=opts.month, serv=serv, dir=dir, code=code, min=summin, sum=sumraw,
                 account=cfg.operator[oper]['account']
             )
-            f2.write(st + '\n')
+            f.write(st + '\n')
 
         f.close()
-        f2.close()
+        # f2.close()
         cursor.close()
         result.sum, result.nds, result.vsego = (ut.rnd(sum_sum), ut.rnd(sum_nds), ut.rnd(sum_vsego))
         return result.sum, result.nds, result.vsego
@@ -1646,6 +1647,9 @@ if __name__ == '__main__':
     p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
     p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
     p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
+    p.add_option("--reset", "-r",
+                 action="store_true", dest="reset", default=False,
+                 help="option only for compatibility with bill.py")
 
     opts, args = p.parse_args()
 
@@ -1679,7 +1683,6 @@ try:
     t1 = time.time()
     log = logging.getLogger('app')
     bar = Progressbar(info='reports for MTS', maximum=100)
-    pt = ut.ProgressTime(t1)
 
     # данные по клиентам
     cust = customers.Cust(dsn=cfg.dsn_bill2)

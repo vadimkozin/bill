@@ -1,0 +1,8 @@
+cfg/cfg.py
+build.sh
+run.sh
+/venv
+/mix
+/doc
+.DS_Store
+.idea

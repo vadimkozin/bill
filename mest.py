@@ -132,6 +132,7 @@ class BillingMest(object):
 
         db = pymysql.Connect(**self.dsn_bill)
         cursor = db.cursor()
+        cursor_insert = db.cursor()
 
         # клиенты с оплачиваемой местной связью
         cid2tar = self._read_mest_tar()
@@ -171,12 +172,13 @@ class BillingMest(object):
                   "'{cost1min}', '{sum}', '{prim}')".\
                 format(table=table_book, account=account, period=period, cid=cid, uf='u',
                        dt=date_now, min=it['min'], cost1min=it['cost1min'], sum=it['summa'], prim='+')
-            count += execute(cursor, sql)
+            count += execute(cursor_insert, sql)
 
         xlog('added {count} rows into {table}, period={period}'.
              format(count=count, table=table_book, period=period))
 
         cursor.close()
+        cursor_insert.close()
         db.close()
 
         t2 = time.time()
@@ -190,6 +192,9 @@ if __name__ == '__main__':
     p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
     p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
     p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
+    p.add_option("--reset", "-r",
+                 action="store_true", dest="reset", default=False,
+                 help="option only for compatibility with bill.py")
 
     opt, args = p.parse_args()
 

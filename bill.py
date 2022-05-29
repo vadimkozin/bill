@@ -103,28 +103,31 @@ class Billing(object):
     """
     Телефонный биллинг
     """
-    # клиенты
-    cust = customers.Cust(dsn=cfg.dsn_cust)
-    custks = customers.CustKs(dsn=cfg.dsn_cust)
-    cust_replace = customers.CustReplace(dsn=cfg.dsn_cust)
-
-    # номера и тарифы ВМ связи ФГУП РСИ
-    n811 = numbers1.Number811(dsn=cfg.dsn_tar)
-
-    # городские номера клиентов
-    # self.numbers = numbers1.Numbers(dsn=cfg.dsn_tel, table=opts.table, n811=self.n811)
-
-    # коды СПС - связи
-    cdef = codedef.Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
-
-    # тип звонка по номеру
-    ctype = calltype.Calltype(cdef=cdef)
-
-    # тарифы МТС
-    mts = tarmts.Tarmts(dsn=cfg.dsn_tar, tabcode='komstarCode', tabtar='komstarTar', tabtar2='komstarTarRss',
-                        tabtarmts='mtsTar', stat=ctype, cdef=cdef, custdefault=1171)
-
+    # ///////////////////////////////
     def __init__(self, opts):
+        # клиенты
+        self.cust = customers.Cust(dsn=cfg.dsn_cust)
+        self.custks = customers.CustKs(dsn=cfg.dsn_cust)
+        self.cust_replace = customers.CustReplace(dsn=cfg.dsn_cust)
+
+        # номера и тарифы ВМ связи ФГУП РСИ
+        self.n811 = numbers1.Number811(dsn=cfg.dsn_tar)
+
+        # городские номера клиентов
+        self.numbers = numbers1.Numbers(dsn=cfg.dsn_tel, table=opts.table, n811=self.n811)
+
+        # коды СПС - связи
+        self.cdef = codedef.Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
+
+        # тип звонка по номеру
+        self.ctype = calltype.Calltype(cdef=self.cdef)
+
+        # тарифы МТС
+        self.mts = tarmts.Tarmts(dsn=cfg.dsn_tar, tabcode='komstarCode', tabtar='komstarTar', tabtar2='komstarTarRss',
+                            tabtarmts='mtsTar', stat=self.ctype, cdef=self.cdef, custdefault=1171)
+
+    # ///////////////////////////////
+
         """
         :param opts: параметры
         """
@@ -239,6 +242,8 @@ class Billing(object):
             else:
                 q.prn()
 
+        Progressbar.go_new_line()
+
         if count_noexist_number:
             print(("!номеров, отсутствующих в базе:{count}".format(count=count_noexist_number)))
 
@@ -260,6 +265,9 @@ if __name__ == '__main__':
     p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
     p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
     p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
+    p.add_option("--reset", "-r",
+                 action="store_true", dest="reset", default=False,
+                 help="option only for compatibility with bill.py")
 
     opt, args = p.parse_args()
 

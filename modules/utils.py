@@ -404,3 +404,25 @@ class ProgressChar(object):
             self.timer.cancel()
 
 
+def period_is_billing(year, month):
+    """
+    Возвращает True|False - соответсвует ли заданный период расчётному периоду
+    ps. 'расчётный период' - это всегда предыдущий месяц от текущего астрономического
+    :param year: год
+    :param month: месяц
+    :return: True | False
+    """
+
+    # текущий расчётный год и месяц
+    year_current = datetime.datetime.now().year
+    month_curent = datetime.datetime.now().month
+    month_curent -= 1
+    if month_curent == 0:
+        month_curent = 12
+        year_current -= 1
+
+    print('year:', year, 'month:', month)
+    print('year_current:', year_current, 'month_curent:', month_curent)
+
+
+    return year == year_current and month == month_curent

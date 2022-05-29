@@ -297,7 +297,7 @@ class Billing(object):
             sql = f.read().replace('_TABLE_CREATE_', table)
             f.close()
             self.cur.execute(sql)
-            log.info("create tab:%s" % table)
+            log.info("create table: bill.{table}".format(table=table))
 
     def split626(self, dsn_tel, tab_split, info='-'):
         """
@@ -1947,13 +1947,43 @@ def set_cust_type(dsn_cust, dsn_bill, table, where):
     return step
 
 
+def reset_period(dsn, table):
+    """
+    1) Сброс таблицы в SMG в исходное состояние перед загрузкой данных в биллинг
+    2) Удаление таблицы в биллинге, напр. bill.Y2022M04
+    :param dsn: параметры для подключения к БД
+    :param table: таблица, напр. Y2022M04
+    :return: True | False в зависимости от результата
+    """
+    db = pymysql.Connect(**dsn)
+    cursor = db.cursor()
+
+    sql = "UPDATE smg2.{table} SET f1='-', f2='-', f3='-', stat='-', cid=0, rid=0, bid=0".format(table=table)
+    cursor.execute(sql)
+    # rows_updated = cursor.rowcount
+    log.info("reset table: smg2.{table}".format(table=table))
+
+    sql = "DROP TABLE IF EXISTS bill.{table}".format(table=table)
+    cursor.execute(sql)
+    # rows_drop = cursor.rowcount
+    log.info("drop table: bill.{table}".format(table=table))
+
+    cursor.close()
+    db.close()
+    return True
+
+
 if __name__ == '__main__':
     p = optparse.OptionParser(description="load calls from smg.YxxxxMxx (ex.Y2013M09) for billing",
-                              prog="load.py", version="0.1a", usage="load.py --year=year --month=month [--log=namefile]")
+                              prog="load.py", version="0.1a",
+                              usage="load.py --year=year --month=month [--log=name_file] [--reset]")
 
     p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
     p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
     p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
+    p.add_option("--reset", "-r",
+                 action="store_true", dest="reset", default=False,
+                 help="reset marker loading in DB 'smg2' and delete(!) table in DB 'bill'.")
 
     opts, args = p.parse_args()
 
@@ -1972,7 +2002,6 @@ logging.basicConfig(
     filename=opts.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
 
 try:
-
     t1 = time.time()
     log = logging.getLogger('app')
 
@@ -1984,10 +2013,18 @@ try:
     cdef = codedef.Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
     stat = Stat(cal=cal, cdef=cdef)
 
+    if opts.reset:
+        if not ut.period_is_billing(opts.year, opts.month):
+            reset_period(dsn=cfg.dsn_bill, table=opts.table)
+        else:
+            msg = 'It is not possible to make a reset for a period other than the calculated one.'
+            log.warning(msg)
+            print(msg)
+            exit(1)
+
     bill = Billing(cfg.dsn_bill, table=opts.table, tab_sample='./sql/table_bill.sql')
 
     # oper:(m=MTS b=BEELINE f=MEGAFON g=FGUP-RSI c=CITYLAN x=MGTS r=RSS)
-
     smg2 = Smg642(dsn=cfg.dsn_smg2, bill=bill, table=opts.table, numb=numb, stat=stat)
     smg2.add(src_num=('7499642____%', '%642____%', '81252__', '8117___', '710%', '627%'), dtr_trank=('mts', 'mrp'), info='smg2.642_MTS', eq='smg2_642q', op='q')
     smg2.add(src_num=('7495626%', '8495626%', '626%'), dtr_trank=('mts', 'mrp'), info='smg2.626_MTS', eq='smg2_626q', op='q')
