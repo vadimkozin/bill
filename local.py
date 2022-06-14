@@ -20,17 +20,18 @@ import optparse
 import traceback
 import time
 import pymysql
-import logging
 from datetime import datetime
-from cfg import cfg, ini
-from modules import utils
+from cfg import cfg
+from modules import utils as ut
 from modules.progressbar import Progressbar
 from modules.xlslocal import BillLocalXls
+from modules import logger
 
 shema = "{root}/sql/local".format(root=cfg.root)
 path_result = cfg.paths['result']       # корень для результатов
 dir_result = cfg.paths['local']['dir']  # под-директория для файлов с повремёнкой (если есть)
 flog = cfg.paths['logging']['local']    # лог-файл
+log = logger.Logger(flog).log           # ф-ия логгер
 
 
 def get_path(file, prefix=shema):
@@ -44,18 +45,6 @@ local_tables = [
     # {'dsn': cfg.dsn_tar, 'table': 'loc_numbers_tar', 'shema': get_path('table_loc_numbers_tar')},
     # {'dsn': cfg.dsn_tar, 'table': 'loc_stream_tar', 'shema': get_path('table_loc_stream_tar')},
 ]
-
-
-def xlog(msg, out_console=True):
-    """
-    Пишет в лог и на консоль если out_console=True
-    :param msg: сообщение для логирования
-    :param out_console: True|False флажок
-    :return:
-    """
-    log.info(msg)
-    if out_console:
-        print(msg)
 
 
 def execute(cursor, sql, save_db=True):
@@ -75,9 +64,9 @@ def execute(cursor, sql, save_db=True):
 
 def create_tables(tables):
     for d in tables:
-        table = utils.create_table_if_no_exist(dsn=d['dsn'], table=d['table'], tab_template=d['shema'])
+        table = ut.create_table_if_no_exist(dsn=d['dsn'], table=d['table'], tab_template=d['shema'])
         if table:
-            xlog("created table: '{table}'".format(table=table))
+            log("created table: '{table}'".format(table=table))
 
 
 def get_last_account(cursor, table, field='account'):
@@ -215,7 +204,7 @@ class Stream(object):
         # удаление записей из stream за period если они там есть
         sql = "DELETE FROM {table} WHERE period='{period}'".format(table=self.table_stream, period=period)
         r = execute(cursor, sql)
-        xlog('stream: deleted {records} records from {table} for {period}'.
+        log('stream: deleted {records} records from {table} for {period}'.
              format(records=r, table=self.table_stream, period=period))
 
         account = get_last_account(cursor=cursor, table=self.table_stream)
@@ -240,7 +229,7 @@ class Stream(object):
                 # print(sql)
                 records += execute(cursor_insert, sql)
 
-        xlog('stream: insert {records} records in table {table} for {period}'.
+        log('stream: insert {records} records in table {table} for {period}'.
              format(records=records, table=self.table_stream, period=period))
 
 
@@ -267,7 +256,7 @@ def set_local_tariff_for_customers(dsn):
 
     for sql in requests:
         cursor.execute(sql)
-        xlog('update {records} records: {sql}'.format(records=cursor.rowcount, sql=sql))
+        log('update {records} records: {sql}'.format(records=cursor.rowcount, sql=sql))
     cursor.close()
     db.close()
 
@@ -277,11 +266,11 @@ class BillingLocal(object):
     Телефонный биллинг локальных связей (повремёнка)
     """
 
-    def __init__(self, opts):
+    def __init__(self, ops):
         """
-        :param opts: параметры
+        :param ops: параметры
         """
-        self.opts = opts
+        self.ops = ops
         self.cid2tid = dict()   # отображение кода клиента на код тарифа по повремёнке: cid->tid
         self.cid2type = dict()  # отображение кода клиента на тип клиента: cid->uf
         self.tar = dict()       # отображение кода тарифа повремёнки на данные тарифа: tid->{abmin, cost1min}
@@ -295,7 +284,6 @@ class BillingLocal(object):
         :return:
         """
         db = pymysql.Connect(**dsn)
-
         cursor = db.cursor()
 
         sql = 'SELECT `tid`, `abmin`, `cost1min` FROM {table}'.format(table=table)
@@ -315,8 +303,8 @@ class BillingLocal(object):
         tid_list = self.tar.keys()
         for tid in tid_list:
             t = self.get_tar(tid)
-            print('{tid}->{abmin}мин,  превыш: {cost1min} руб/мин'.format(tid=tid, abmin=t['abmin'],
-                                                                          cost1min=t['cost1min']))
+            print('{tid}->{abmin}мин,  превыш: {cost1min} руб/мин'.
+                  format(tid=tid, abmin=t['abmin'], cost1min=t['cost1min']))
 
     def _read_local_tar_by_customer(self, dsn, table):
         """
@@ -325,7 +313,6 @@ class BillingLocal(object):
         :param table: таблица с клиентами
         """
         db = pymysql.Connect(**dsn)
-
         cursor = db.cursor()
 
         sql = 'SELECT `CustID`, `CustType` customer_type, `tid_l` FROM {table}'.format(table=table)
@@ -361,8 +348,8 @@ class BillingLocal(object):
         :return: список в виде '1,23,324'
         """
         db = pymysql.Connect(**dsn)
-
         cursor = db.cursor()
+
         sql = "SELECT `cid` FROM {table} ORDER BY `cid`".format(table=table)
         stream_cid_list = []
         cursor.execute(sql)
@@ -384,13 +371,13 @@ class BillingLocal(object):
 
         requests = list()
         requests.append("DELETE FROM {table} WHERE period='{period}'".
-                        format(table=self.opts.table_book, period=self.opts.period))
+                        format(table=self.ops.get('table_book'), period=self.ops.get('period')))
         requests.append("DELETE FROM {table} WHERE period='{period}'".
-                        format(table=self.opts.table_numbers, period=self.opts.period))
+                        format(table=self.ops.get('table_numbers'), period=self.ops.get('period')))
 
         for sql in requests:
             records = execute(cursor, sql)
-            xlog('delete {records} records: {sql}'.format(records=records, sql=sql))
+            log('delete {records} records: {sql}'.format(records=records, sql=sql))
 
     def _marked_local_calls(self, cursor):
         """
@@ -403,25 +390,25 @@ class BillingLocal(object):
         # 626
         sql = "UPDATE {table} SET `stp`='+' WHERE `_stat`='G' AND " \
               "(`{field_from}` LIKE '626%' OR `fmx` LIKE '8495626%')".\
-            format(table=self.opts.table_bill, field_from=self.field_from)
+            format(table=self.ops.get('table_bill'), field_from=self.field_from)
         records = execute(cursor, sql)
-        xlog('marked {records} 626x records'.format(records=records))
+        log('marked {records} 626x records'.format(records=records))
         marked += records
 
         # 642
         sql = "UPDATE {table} SET `stp`='+' WHERE `_stat`='G' AND " \
               "(`{field_from}` LIKE '642%' OR `fmx` LIKE '8499642%')".\
-            format(table=self.opts.table_bill, field_from=self.field_from)
+            format(table=self.ops.get('table_bill'), field_from=self.field_from)
         records = execute(cursor, sql)
-        xlog('marked {records} 642x records'.format(records=records))
+        log('marked {records} 642x records'.format(records=records))
         marked += records
 
         # rest
         sql = "UPDATE {table} SET `stp`='+' WHERE `_stat`='G' AND `stp` ='-' AND " \
               "(`{field_from}` NOT LIKE '642%' OR `{field_from}` NOT LIKE '626%')".\
-            format(table=self.opts.table_bill, field_from=self.field_from)
+            format(table=self.ops.get('table_bill'), field_from=self.field_from)
         records = execute(cursor, sql)
-        xlog('marked {records} records (CTS, TCU and rest calls)'.format(records=records))
+        log('marked {records} records (CTS, TCU and rest calls)'.format(records=records))
         marked += records
 
         return marked
@@ -437,7 +424,7 @@ class BillingLocal(object):
 
         # выборка только записей юр-лиц (uf='u') помеченных для биллинга местной связи (stp='+')
         sql = "SELECT cid FROM {table} WHERE stp='+' AND uf='u' GROUP BY cid HAVING (cid NOT IN ({exclude_cid_list}))".\
-            format(table=self.opts.table_bill, exclude_cid_list=exclude_cid_list)
+            format(table=self.ops.get('table_bill'), exclude_cid_list=exclude_cid_list)
         cursor.execute(sql)
         customers_list = cursor.fetchall()
 
@@ -454,7 +441,8 @@ class BillingLocal(object):
         :return: true | false - было ли превышение хоть у одного клиента
         """
         step, step_cust, step_records, sum_overrun = (0, 0, 0, 0.0)
-        bar = Progressbar(info='calc results for: {table}'.format(table=self.opts.table_bill), maximum=len(cid_list))
+        bar = Progressbar(info='calc results for: {table}'.format(table=self.ops.get('table_bill')),
+                          maximum=len(cid_list))
 
         # 1. Для каждого клиента из списка cid_list
         for cid in cid_list:
@@ -476,7 +464,7 @@ class BillingLocal(object):
                   " WHERE (`cid`={cid} AND `stp`='+' AND `uf`='u')" \
                   " GROUP BY `{field_from}`" \
                   " HAVING (sum(`min`)>{abmin})".\
-                format(table=self.opts.table_bill, cid=cid, abmin=abmin, field_from=self.field_from)
+                format(table=self.ops.get('table_bill'), cid=cid, abmin=abmin, field_from=self.field_from)
 
             cursor.execute(sql)
 
@@ -485,12 +473,14 @@ class BillingLocal(object):
                 step_cust += 1
                 for line in cursor:
                     number, sum_min = line
-                    sum_overrun += self._save_result(cursor, self.opts.period, cid, number, sum_min, abmin, cost1min)
+                    sum_overrun += self._save_result(cursor, self.ops.get('period'), cid, number, sum_min,
+                                                     abmin, cost1min)
                     step_records += 1
 
         bar.go_new_line()
-        xlog("saved '{customers}/{records}/{sum_overrun}' (customers/records/summa) in table: {table}".
-             format(customers=step_cust, records=step_records, sum_overrun=sum_overrun, table=self.opts.table_numbers))
+        log("saved '{customers}/{records}/{sum_overrun}' (customers/records/summa) in table: {table}".
+            format(customers=step_cust, records=step_records, sum_overrun=sum_overrun,
+                   table=self.ops.get('table_numbers')))
 
         return step_records > 0
 
@@ -511,7 +501,7 @@ class BillingLocal(object):
 
         sql = "INSERT INTO {table} (`cid`, `period`, `number`, `min`, `abmin`, `cost1min`, `sum`) " \
               "VALUES ('{cid}', '{period}', '{number}', '{min}' ,'{abmin}', '{cost1min}', '{sum}')".\
-            format(table=self.opts.table_numbers, cid=cid, period=period, number=number, min=sum_min, abmin=abmin,
+            format(table=self.ops.get('table_numbers'), cid=cid, period=period, number=number, min=sum_min, abmin=abmin,
                    cost1min=cost1min, sum=sum_overrun)
 
         execute(cursor, sql)
@@ -525,10 +515,10 @@ class BillingLocal(object):
         :return: общая сумма превышения
         """
         account = self._get_last_account(cursor) + 1
-        date = utils.sqldate(datetime.date(datetime.now()))
+        date = ut.sqldate(datetime.date(datetime.now()))
 
         sql = "SELECT cid, sum(sum) sum_sum FROM {table} WHERE period='{period}' GROUP BY cid".\
-            format(table=self.opts.table_numbers, period=self.opts.period)
+            format(table=self.ops.get('table_numbers'), period=self.ops.get('period'))
         cursor.execute(sql)
 
         total_summa = 0.0
@@ -538,8 +528,8 @@ class BillingLocal(object):
             total_summa += sum_sum
             sql = "INSERT INTO {table} (`account`, `cid`, `uf`, `period`, `dt`, `sum`) " \
                   "VALUES('{account}', '{cid}', '{uf}', '{period}', '{dt}', '{sum}')".\
-                format(table=self.opts.table_book, account=account, cid=cid, uf=self.get_type(cid),
-                       period=self.opts.period, dt=date, sum=sum_sum)
+                format(table=self.ops.get('table_book'), account=account, cid=cid, uf=self.get_type(cid),
+                       period=self.ops.get('period'), dt=date, sum=sum_sum)
             execute(cursor, sql)
             account += 1
 
@@ -552,7 +542,7 @@ class BillingLocal(object):
         :field: название поля у которого вычисляем последний номер
         :return: последний account
         """
-        sql = "SELECT max(`{field}`) FROM {table}".format(field=field, table=self.opts.table_book)
+        sql = "SELECT max(`{field}`) FROM {table}".format(field=field, table=self.ots.get('table_book'))
         cursor.execute(sql)
         max_number = cursor.fetchone()[0]
         if not max_number:
@@ -587,7 +577,7 @@ class BillingLocal(object):
             re.compile(r'783\d{4}'),
         ]
 
-        sql = "SELECT `id`, `cid`, `fm`, `fm2` FROM {table} WHERE `_stat`='G'".format(table=self.opts.table_bill)
+        sql = "SELECT `id`, `cid`, `fm`, `fm2` FROM {table} WHERE `_stat`='G'".format(table=self.ops.get('table_bill'))
 
         if where:
             sql += " AND ({where}) ".format(where=where)
@@ -595,13 +585,13 @@ class BillingLocal(object):
         cursor.execute(sql)
 
         info = 'set from({field_from}) for local billing: {table}'.\
-            format(table=self.opts.table_bill, field_from=self.field_from)
+            format(table=self.ops.get('table_bill'), field_from=self.field_from)
 
         bar = Progressbar(info=info, maximum=cursor.rowcount)
         count, updated, step, step_block, rowcount = (0, 0, 0, 100, cursor.rowcount)
 
         sql_begin = "UPDATE {table} SET `{field_from}`=CASE".\
-            format(table=self.opts.table_bill, field_from=self.field_from)
+            format(table=self.ops.get('table_bill'), field_from=self.field_from)
         sql_end = "ELSE `{field_from}` END".format(field_from=self.field_from)
 
         values = list()
@@ -651,7 +641,7 @@ class BillingLocal(object):
                 values = []
 
         bar.go_new_line()
-        xlog("set {all}/{updated} (count/updated) number for local".format(all=count, updated=updated))
+        log("set {all}/{updated} (count/updated) number for local".format(all=count, updated=updated))
         return updated
 
     def bill(self, dsn_bill, dsn_tar, dsn_cust, info=''):
@@ -663,7 +653,7 @@ class BillingLocal(object):
         :param info: текст для логирования
         """
         t1 = time.time()
-        xlog('period: {period}'.format(period=self.opts.period))
+        log('period: {period}'.format(period=self.ops.get('period')))
 
         db = pymysql.Connect(**dsn_bill)
         cursor = db.cursor()
@@ -672,10 +662,10 @@ class BillingLocal(object):
         self._set_number_local(dsn=dsn_bill)
 
         # сохранение в мапе отношения tid->{abmin, cost1min}
-        self._read_local_tar(dsn=dsn_tar, table=self.opts.table_numbers_tar)
+        self._read_local_tar(dsn=dsn_tar, table=self.ops.get('table_numbers_tar'))
 
         # сохранение в мапе отношения cid->tid для местной связи
-        self._read_local_tar_by_customer(dsn=dsn_cust, table=self.opts.table_customers)
+        self._read_local_tar_by_customer(dsn=dsn_cust, table=self.ops.get('table_customers'))
 
         # если за период расчёт уже был, то удаляем записи из loc_numbers и loc_book
         self._delete_if_exist(dsn=dsn_bill)
@@ -684,7 +674,7 @@ class BillingLocal(object):
         self._marked_local_calls(cursor)
 
         # клиенты, у которых местная связь считается по потоку, в расчёте по номерам не учавствуют
-        stream_cid_list = self._get_stream_customers(dsn=dsn_tar, table=self.opts.table_stream_tar)
+        stream_cid_list = self._get_stream_customers(dsn=dsn_tar, table=self.ops.get('table_stream_tar'))
 
         # получаем список потенциальных клиентов для местного биллинга (исключаем тех у которых номера в потоке)
         cid_list = self._get_cust_for_billing(cursor, stream_cid_list)
@@ -692,24 +682,59 @@ class BillingLocal(object):
         # по каждому клиенту - если есть превышение, то записываем в таблицу loc_numbers и итоги в loc_book
         if self._calc_results(cursor, cid_list):
             total = self._calc_book(cursor)
-            xlog("total='{total}\u20BD' in table: {table}".format(total=total, table=self.opts.table_book))
+            log("total='{total}\u20BD' in table: {table}".format(total=total, table=self.ops.get('table_book')))
 
         # синхронизация таблиц loc_numbers и loc_book по полю account
         sql = "UPDATE {table_book} b JOIN {loc_numbers} r ON b.cid=r.cid SET r.account=b.account " \
-              "WHERE b.period=r.period".format(table_book=self.opts.table_book, loc_numbers=self.opts.table_numbers)
+              "WHERE b.period=r.period".format(table_book=self.ops.get('table_book'),
+                                               loc_numbers=self.ops.get('table_numbers'))
         records = execute(cursor, sql)
 
-        xlog("updated {records} records on the field 'account' in table: {loc_numbers}".
-             format(records=records, loc_numbers=self.opts.table_numbers))
+        log("updated {records} records on the field 'account' in table: {loc_numbers}".
+            format(records=records, loc_numbers=self.ops.get('table_numbers')))
 
         cursor.close()
         db.close()
 
         if info:
-            xlog(info)
+            log(info)
 
         t2 = time.time()
-        xlog("work: {0:0.2f} sec".format(t2 - t1))
+        log("work: {0:0.2f} sec".format(t2 - t1))
+
+
+def main(year, month):
+    ops = dict()
+    ops.setdefault('year', year)
+    ops.setdefault('month', month)
+    ops.setdefault('table_bill', ut.year_month2period(year=year, month=month))  # Y2022M06
+    ops.setdefault('period', '{year:04d}_{month:02d}'.format(year=int(year), month=int(month)))  # 2022_06
+    ops.setdefault('table_numbers_tar', 'tarif.loc_numbers_tar')
+    ops.setdefault('table_stream_tar', 'tarif.loc_stream_tar')
+    ops.setdefault('table_numbers', 'bill_tmp.loc_numbers')
+    ops.setdefault('table_stream', 'bill_tmp.loc_stream')
+    ops.setdefault('table_book', 'bill_tmp.loc_book')
+    ops.setdefault('table_customers', 'customers.Cust')
+
+    # create local tables if no exists
+    create_tables(tables=local_tables)
+
+    # local by numbers
+    local = BillingLocal(ops)
+    local.bill(dsn_bill=cfg.dsn_bill, dsn_tar=cfg.dsn_tar, dsn_cust=cfg.dsn_cust, info='')
+
+    # local by stream
+    stream = Stream(dsn_tar=cfg.dsn_tar, dsn_stream=cfg.dsn_bill, dsn_bill=cfg.dsn_bill,
+                    table_stream_tar=ops.get('table_stream_tar'), table_stream=ops.get('table_stream'),
+                    table_bill=ops.get('table_bill'), period=ops.get('period'))
+
+    stream.save_data_stream(ops.get('period'))
+
+    # Результат по местной-повременной связи в виде xls-файла
+    xls = BillLocalXls(ops=ops, dsn=cfg.dsn_bill2, year=year, month=month, path=path_result, directory=dir_result)
+    xls.create_file()
+
+    log('.')
 
 
 if __name__ == '__main__':
@@ -720,61 +745,17 @@ if __name__ == '__main__':
     p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
     p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
 
-    opt, args = p.parse_args()
+    opts, args = p.parse_args()
 
-    # параметры в командной строке - в приоритете
-    if not (opt.year and opt.month):
-        opt.year = ini.year
-        opt.month = ini.month
-
-    if not opt.year or not opt.month or not opt.log:
+    if not opts.year or not opts.month:
         print(p.print_help())
         exit(1)
-
-    opt.table_bill = 'Y{year:04d}M{month:02d}'.format(year=int(opt.year), month=int(opt.month))
-    opt.period = '{year:04d}_{month:02d}'.format(year=int(opt.year), month=int(opt.month))
-
-    opt.table_numbers_tar = 'tarif.loc_numbers_tar'
-    opt.table_stream_tar = 'tarif.loc_stream_tar'
-    opt.table_numbers = 'bill.loc_numbers'
-    opt.table_stream = 'bill.loc_stream'
-    opt.table_book = 'bill.loc_book'
-    opt.table_customers = 'customers.Cust'
-
-    logging.basicConfig(
-        filename=opt.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
-    log = logging.getLogger('app')
 
     try:
         # set_local_tariff_for_customers(cfg.dsn_cust2)     # one time for set customers.Cust.tid_l
 
-        # create local tables if no exists
-        create_tables(tables=local_tables)
+        main(year=opts.year, month=opts.month)
 
-        # local by numbers
-        local = BillingLocal(opt)
-        local.bill(dsn_bill=cfg.dsn_bill, dsn_tar=cfg.dsn_tar, dsn_cust=cfg.dsn_cust, info='')
-
-        # local by stream
-        stream = Stream(dsn_tar=cfg.dsn_tar, dsn_stream=cfg.dsn_bill, dsn_bill=cfg.dsn_bill,
-                        table_stream_tar=opt.table_stream_tar, table_stream=opt.table_stream,
-                        table_bill=opt.table_bill, period=opt.period)
-
-        stream.save_data_stream(opt.period)
-
-        # Результат по местной-повременной связи в виде xls-файла
-        xls = BillLocalXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_result, directory=dir_result)
-        xls.create_file()
-
-        xlog('.')
-
-    except pymysql.Error as e:
-        log.exception(str(e))
-        print(e)
-    except RuntimeError as e:
-        log.exception(str(e))
-        print(e)
     except Exception as e:
-        log.exception(str(e))
-        traceback.print_exc(file=open(opt.log, "at"))
+        log(e.args)
         traceback.print_exc()

@@ -5,16 +5,17 @@
 """
 import re
 import time
-import logging
 import pymysql
 import optparse
 import traceback
-from cfg import cfg, ini
+from cfg import cfg
 from modules import codedef
 from modules import utils as ut
+from modules import logger
 from modules.progressbar import Progressbar
 
-flog = cfg.paths['logging']['load']    # лог-файл
+flog = cfg.paths['logging']['load']     # лог-файл
+log = logger.Logger(flog).log           # ф-ия логгер
 
 
 def date_first_day_month(table):
@@ -25,12 +26,12 @@ def execute(cur, sql, verbose=True):
     """ execute request """
     cur.execute(sql)
     if verbose:
-        log.info(sql)
+        log(sql)
 
 
 def itog_log(info='-', step=0, update=0, t1=0.0, t2=0.0, cost=0):
 
-    log.info('{info}: step/add: {step}/{update} {proc:.1f}% time:{time}s cost:{cost:.2f}'.
+    log('{info}: step/add: {step}/{update} {proc:.1f}% time:{time}s cost:{cost:.2f}'.
              format(info=info, step=step, update=update, proc=float(update)/(step+1.)*100, time=int(t2-t1), cost=cost))
 
 
@@ -259,6 +260,7 @@ class Billing(object):
         :param dsn: dsn-param to database
         :rtype : None
         """
+        self.dsn = dsn
         self.db = pymysql.Connect(**dsn)
         self.cur = self.db.cursor()
         self.table = table
@@ -289,15 +291,16 @@ class Billing(object):
         """
         create table if one not exists
         """
-        sql= "SELECT 1 FROM `information_schema`.`TABLES` where table_schema = 'bill' and table_name = '{table}'".format(table=table)
+        sql="SELECT 1 FROM `information_schema`.`TABLES` where table_schema = 'bill' and table_name = '{table}'".format(table=table)
         self.cur.execute(sql)
+        base = self.dsn['db']
 
         if self.cur.rowcount == 0:
             f = open(tab_sample)
             sql = f.read().replace('_TABLE_CREATE_', table)
             f.close()
             self.cur.execute(sql)
-            log.info("create table: bill.{table}".format(table=table))
+            log("create table: {base}.{table}".format(base=base, table=table))
 
     def split626(self, dsn_tel, tab_split, info='-'):
         """
@@ -524,7 +527,7 @@ class Number642Cust58(object):
 # end class Number642Cust58
 
 
-class Number626(object):
+class Number626__(object):
     """ numbers 626xxxx for billing """
     numbers = dict()
     numadd = ('6269000',)
@@ -585,7 +588,7 @@ class Number626(object):
 # end class Number626
 
 
-class Number710(object):
+class Number710__(object):
     """ numbers 710xxxx & 627xxxx for billing """
     numbers = dict()
 
@@ -748,7 +751,7 @@ class FindCallM200(object):
                 self.cur = self.db.cursor()
 
         except pymysql.Error as e:
-            log.warning('FindCallM200: ' + str(e))
+            log('FindCallM200: ' + str(e))
             print(e)
             raise RuntimeError('Error in FindCallM200, local MySQL server not load!')
 
@@ -1957,75 +1960,45 @@ def reset_period(dsn, table):
     """
     db = pymysql.Connect(**dsn)
     cursor = db.cursor()
+    base = dsn['db']
 
     sql = "UPDATE smg2.{table} SET f1='-', f2='-', f3='-', stat='-', cid=0, rid=0, bid=0".format(table=table)
     cursor.execute(sql)
-    # rows_updated = cursor.rowcount
-    log.info("reset table: smg2.{table}".format(table=table))
+    log("reset table: smg2.{table}".format(table=table))
 
-    sql = "DROP TABLE IF EXISTS bill.{table}".format(table=table)
+    sql = "DROP TABLE IF EXISTS {base}.{table}".format(base=base, table=table)
     cursor.execute(sql)
-    # rows_drop = cursor.rowcount
-    log.info("drop table: bill.{table}".format(table=table))
+    log("drop table: {base}.{table}".format(base=base, table=table))
 
     cursor.close()
     db.close()
     return True
 
 
-if __name__ == '__main__':
-    p = optparse.OptionParser(description="load calls from smg.YxxxxMxx (ex.Y2013M09) for billing",
-                              prog="load.py", version="0.1a",
-                              usage="load.py --year=year --month=month [--log=name_file] [--reset]")
-
-    p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
-    p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
-    p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
-    p.add_option("--reset", "-r",
-                 action="store_true", dest="reset", default=False,
-                 help="reset marker loading in DB 'smg2' and delete(!) table in DB 'bill'.")
-
-    opts, args = p.parse_args()
-
-    # параметры в командной строке - в приоритете
-    if not (opts.year and opts.month):
-        opts.year = ini.year
-        opts.month = ini.month
-
-    opts.table = ut.year_month2period(year=opts.year, month=opts.month)
-
-    if not opts.table or not opts.log:
-        print(p.print_help())
-        exit(1)
-
-logging.basicConfig(
-    filename=opts.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
-
-try:
+def main(year, month):
+    table = 'Y{year:04d}M{month:02d}'.format(year=int(year), month=int(month))  # Y2022M01
     t1 = time.time()
-    log = logging.getLogger('app')
 
     n811 = Number811(cfg.dsn_tar)
-    numb = Numbers(cfg.dsn_tel, opts.table, n811)
-    n626 = Number626(cfg.dsn_tel, opts.table)
-    n710 = Number710(cfg.dsn_tel, opts.table)
-    cal = Calendar(cfg.dsn_cal, opts.table)
+    numb = Numbers(cfg.dsn_tel, table, n811)
+    # n626 = Number626(cfg.dsn_tel, table)
+    # n710 = Number710(cfg.dsn_tel, table)
+    cal = Calendar(cfg.dsn_cal, table)
     cdef = codedef.Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
     stat = Stat(cal=cal, cdef=cdef)
 
-    if opts.reset:
-        if not ut.period_is_billing(opts.year, opts.month):
-            reset_period(dsn=cfg.dsn_bill, table=opts.table)
-        else:
-            msg = 'It is not possible to make a reset for a period other than the calculated one.'
-            log.warning(msg)
-            print(msg)
-            exit(1)
+    # reset smg2.table and drop bill.table before load
+    if not ut.period_is_billing(year, month):
+        reset_period(dsn=cfg.dsn_bill, table=table)
+    else:
+        msg = 'It is not possible to make a reset for a period other than the calculated one.'
+        log(msg)
+        exit(1)
 
-    bill = Billing(cfg.dsn_bill, table=opts.table, tab_sample='./sql/table_bill.sql')
+    bill = Billing(cfg.dsn_bill, table=table, tab_sample='./sql/table_bill.sql')
 
     # oper:(m=MTS b=BEELINE f=MEGAFON g=FGUP-RSI c=CITYLAN x=MGTS r=RSS)
-    smg2 = Smg642(dsn=cfg.dsn_smg2, bill=bill, table=opts.table, numb=numb, stat=stat)
+    smg2 = Smg642(dsn=cfg.dsn_smg2, bill=bill, table=table, numb=numb, stat=stat)
     smg2.add(src_num=('7499642____%', '%642____%', '81252__', '8117___', '710%', '627%'), dtr_trank=('mts', 'mrp'), info='smg2.642_MTS', eq='smg2_642q', op='q')
     smg2.add(src_num=('7495626%', '8495626%', '626%'), dtr_trank=('mts', 'mrp'), info='smg2.626_MTS', eq='smg2_626q', op='q')
     smg2.add(src_num=('81_____',), dtr_trank=('mts', 'mrp'), info='smg2.811_MTS', eq='smg2_811q', op='q')
@@ -2043,15 +2016,25 @@ try:
     print("work: {0:0.2f} sec".format(t2 - t1, ))
     itog_log(info='end', step=0, update=0, t1=t1, t2=time.time())
 
-    log.warning('.')
+    log('.')
 
-except pymysql.Error as e:
-    log.warning(str(e))
-    print(e)
-except RuntimeError as e:
-    log.warning(str(e))
-    print(e)
-except Exception as e:
-    log.warning(str(e))
-    traceback.print_exc(file=open(opts.log, "at"))
-    traceback.print_exc()
+
+if __name__ == '__main__':
+    p = optparse.OptionParser(description="load calls from smg.YxxxxMxx (ex.Y2013M09) for billing",
+                              prog="load.py", version="0.1a",
+                              usage="load.py --year=year --month=month")
+
+    p.add_option('--year', '-y', action='store', dest='year', help='year, example 2022, 2023, ..')
+    p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
+    opts, args = p.parse_args()
+
+    if not opts.year or not opts.month:
+        print(p.print_help())
+        exit(1)
+
+    try:
+        main(year=opts.year, month=opts.month)
+
+    except Exception as e:
+        log(e.args)
+        traceback.print_exc(file=open(flog, "at"))

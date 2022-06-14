@@ -9,6 +9,7 @@ import threading
 import time
 from io import open
 import subprocess
+import logging
 from cfg import cfg
 from fnmatch import fnmatch
 from modules.diskwalk_api import diskwalk
@@ -137,6 +138,7 @@ def create_table_if_no_exist(dsn, table, tab_template):
     :param dsn: dsn
     :param table: создаваемая таблица
     :param tab_template: шаблон создания таблицы (sql-запрос в файле)
+    :return: созданную таблицу или '', если таблица существует
     """
     db = pymysql.Connect(**dsn)
     cursor = db.cursor()
@@ -147,6 +149,7 @@ def create_table_if_no_exist(dsn, table, tab_template):
         f = open(tab_template)
         sql = f.read().replace('_TABLE_CREATE_', table)
         f.close()
+
         cursor.execute(sql)
         if if_exist_table(cursor, table):
             created = True
@@ -157,7 +160,14 @@ def create_table_if_no_exist(dsn, table, tab_template):
 
 
 def if_exist_table(cursor, table):
-    sql = "SHOW TABLES LIKE '{table}'".format(table=table)
+    # table = 'database.table' or 'table'
+    x = table.split('.')
+    if len(x) == 2:
+        _table = x[1]
+    else:
+        _table = x[0]
+
+    sql = "SHOW TABLES LIKE '{table}'".format(table=_table)
     cursor.execute(sql)
 
     return (False, True)[cursor.rowcount];
@@ -165,7 +175,7 @@ def if_exist_table(cursor, table):
 
 def getlastid(cursor, table, year, month, field='id'):
     """
-    Возвращает последний (максимальный) номер в поле field
+    Возвращает последний (максимальный) номер в поле field.
     :param cursor: курсор
     :param table: таблица
     :param year: год
@@ -414,15 +424,53 @@ def period_is_billing(year, month):
     """
 
     # текущий расчётный год и месяц
-    year_current = datetime.datetime.now().year
-    month_curent = datetime.datetime.now().month
-    month_curent -= 1
-    if month_curent == 0:
-        month_curent = 12
-        year_current -= 1
+    year_bill = datetime.datetime.now().year
+    month_bill = datetime.datetime.now().month - 1
+    if month_bill == 0:
+        month_bill = 12
+        year_bill -= 1
 
-    print('year:', year, 'month:', month)
-    print('year_current:', year_current, 'month_curent:', month_curent)
+    print('year_cmd:', year, 'month_cmd:', month)
+    print('year_bill:', year_bill, 'month_bill:', month_bill)
+
+    return year == year_bill and month == month_bill
 
 
-    return year == year_current and month == month_curent
+def current_date():
+    """
+     Возвращает текущую дату в формате: YYYY-MM-DAY HH:MM:SS
+    :return: например, '2022-06-19 10:11:56'
+    """
+    now = datetime.datetime.now()
+    iso = now.isoformat()   # 2022-06-19T16:15:11.420121
+    [date, time_iso] = iso.split('T')
+    hms = time_iso.split('.')[0]
+    return '{date} {time}'.format(date=date, time=hms)   # 2022-06-19 16:15:11
+
+
+def get_logger__(filename):
+    """
+     Возвращает экземпляр объекта логирования
+    :param filename: имя файла для лога
+    :return: экземляр объекта logging
+    """
+    logging.basicConfig(
+        filename=filename, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
+    return logging.getLogger('app')
+
+
+class Xlog__(object):
+    def __init__(self, logging_obj):
+        self.logging = logging_obj
+
+    def log(self, message, out_console=True):
+        """
+        Пишет в лог и на консоль если out_console=True
+        :param message: сообщение для логирования
+        :param out_console: True|False флажок
+        :return:
+        """
+        self.logging.info(message)
+        if out_console:
+            print(message)
+

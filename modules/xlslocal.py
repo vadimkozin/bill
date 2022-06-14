@@ -72,15 +72,14 @@ class BillLocalXls(object):
     """
     Результат по местной связи в виде xls-файла
     """
-    def __init__(self, dsn, year, month, path, directory):
+    def __init__(self, ops, dsn, year, month, path, directory):
+        self.ops = ops
         self.dsn = dsn
+        self.base = dsn['db']
         self.year = year
         self.month = month
         self.period = '{year:04d}_{month:02d}'.format(year=int(year), month=int(month))  # 2021_04
         self.table = 'Y{year:04d}M{month:02d}'.format(year=int(year), month=int(month))  # Y2021M04
-        # self.outfile = "{path}/{period}_{suffix}.{ext}".format(path=path, period=self.period, suffix=a2['suffix_file'],
-        #                                                        ext='xlsx')  # 2021_04_loc.xls
-        # {root}/result/2022_04/local/2021_04_loc.xls
         self.path = path    # {root}/result
         self.directory = directory  # local
 
@@ -135,7 +134,6 @@ class BillLocalXls(object):
         ut.makedir(path)
 
         # создание книги
-        # workbook = xlsxwriter.Workbook(self.outfile)
         workbook = xlsxwriter.Workbook(full_path)
 
         frm = BillLocalXls.create_formats(workbook)
@@ -185,7 +183,8 @@ class BillLocalXls(object):
         db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
         period = '{year:04d}_{month:02d}'.format(year=int(self.year), month=int(self.month))  # 2021_04
-        sql = cfg.sqls['local_customer_u'].format(period=period, uf='u')
+        sql = cfg.sqls['local_customer_u'].format(table_loc_book=self.ops.get('table_book'), period=period, uf='u')
+
         cursor.execute(sql)
 
         result = list()
@@ -207,7 +206,7 @@ class BillLocalXls(object):
         """
         db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
-        sql = cfg.sqls['local_numbers'].format(accounts=','.join(accounts))
+        sql = cfg.sqls['local_numbers'].format(table_loc_numbers=self.ops.get('table_numbers'), accounts=','.join(accounts))
         cursor.execute(sql)
 
         result = list()
@@ -277,7 +276,6 @@ class BillLocalXls(object):
             q = []
             # fmx LIKE '%6428464' OR fmx LIKE '%6428465'
             for n in numbers:
-                # q.append("fmx LIKE '%{n}'".format(n=n))
                 q.append("(fmx LIKE '%{n}' OR fm LIKE '%{n}')".format(n=n))
 
             self._create_detailed_cust(workbook, frm, x.cid, x.customer, 'OR'.join(q))
@@ -291,7 +289,8 @@ class BillLocalXls(object):
         """
         db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
-        sql = cfg.sqls['local_customer_numbers'].format(period=self.period, cid=cid)
+        sql = cfg.sqls['local_customer_numbers'].format(table_loc_numbers=self.ops.get('table_numbers'),
+                                                        period=self.period, cid=cid)
         cursor.execute(sql)
         numbers = cursor.fetchall()[0]
         cursor.close()
@@ -309,14 +308,13 @@ class BillLocalXls(object):
         :return:
         """
 
-        print(numbers)
+        # print(numbers)
         db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
-        # sql = cfg.sqls['local_num_detail_fmx'].format(table=self.table, numbers=numbers)
-        sql = cfg.sqls['local_num_detail_fm'].format(table=self.table, numbers=numbers)
+        sql = cfg.sqls['local_num_detail_fm'].format(base=self.base, table=self.table, numbers=numbers)
 
         cursor.execute(sql)
-        print(sql)
+        # print(sql)
 
         title = "Детализация связей местной телефонии за период: {period}".format(period=self.period)
         company = "{customer}({cid})".format(customer=customer, cid=cid)
@@ -485,5 +483,19 @@ def _get_customers_u(self):
 
 
 if __name__ == '__main__':
-    xls = BillLocalXls(dsn=cfg.dsn_bill2, year=2022, month=1, path=path_result, directory=dir_result)
+    year = 2022
+    month = 6
+    ops = dict()
+    ops.setdefault('year', year)
+    ops.setdefault('month', month)
+    ops.setdefault('table_bill', ut.year_month2period(year=year, month=month))  # Y2022M06
+    ops.setdefault('period', '{year:04d}_{month:02d}'.format(year=int(year), month=int(month)))  # 2022_06
+    ops.setdefault('table_numbers_tar', 'tarif.loc_numbers_tar')
+    ops.setdefault('table_stream_tar', 'tarif.loc_stream_tar')
+    ops.setdefault('table_numbers', 'bill_tmp.loc_numbers')
+    ops.setdefault('table_stream', 'bill_tmp.loc_stream')
+    ops.setdefault('table_book', 'bill_tmp.loc_book')
+    ops.setdefault('table_customers', 'customers.Cust')
+
+    xls = BillLocalXls(ops=ops, dsn=cfg.dsn_bill2, year=year, month=month, path=path_result, directory=dir_result)
     xls.create_file()

@@ -12,21 +12,21 @@ rss_bookf   - книга извещений для физлиц
 rss_servf   - подробно услуги (МГ ВЗ) для книги извещений
 rss_akt     - акт выполненных работ
 +
-файлы для выгрузки оператору на портал : result/2022_04/mts/cp1251/*.csv
+файлы для выгрузки оператору на портал: result/2022_04/mts/cp1251/*.csv
 
 """
 import optparse
-import logging
 import pymysql
 import traceback
 import time
 import datetime
 from io import open
-from cfg import cfg, ini
+from cfg import cfg
 from modules import utils as ut
 from modules import customers
 from modules import xlsreports
 from modules.progressbar import Progressbar
+from modules import logger
 
 # root = os.path.realpath(os.path.dirname(sys.argv[0]))
 pathsql = "{root}/sql/reports/".format(root=cfg.root)   # файлы sql-команд для создания таблиц
@@ -34,6 +34,7 @@ path_result = cfg.paths['result']       # корень для результат
 dir_mts = cfg.paths['mts']['dir']       # для файлов (csv) на выгрузку оператору МТС (utf-8, cp1251)
 dir_book = cfg.paths['book']['dir']     # для файлов (xlsx) с Книгой счетов и Актом по МГ/ВЗ
 flog = cfg.paths['logging']['mts']      # лог-файл
+log = logger.Logger(flog).log           # ф-ия логгер
 
 stat2service = {'M': 'MG', 'S': 'MG', 'W': 'MN', 'Z': 'VZ'}         # мапа stat -> service
 
@@ -88,7 +89,7 @@ def create_table(dsn, filename, table):
     :return:
     """
     ut.create_table(dsn, filename, table)
-    log.info("create table: `{name}`".format(name=table))
+    log("create table: `{name}`".format(name=table))
 
 
 def insert_db(cursor, table, **kwargs):
@@ -133,18 +134,17 @@ def prepare_table(dsn, file_sql, table, year, month, delete_period=False):
     try:
         cursor.execute("UPDATE `{table}` SET id=-1 WHERE id=-1". format(table=table))
         if delete_period:
-            cursor.execute("DELETE FROM `{table}` WHERE `year`='{year}' AND `month`='{month}'".format
-                           (table=table, year=year, month=month))
-            log.info("delete {records} records from `{table}` year={year} month={month}".format
-                     (table=table, year=year, month=month, records=cursor.rowcount))
+            cursor.execute("DELETE FROM `{table}` WHERE `year`='{year}' AND `month`='{month}'".
+                           format(table=table, year=year, month=month))
+            log("delete {records} records from `{table}` year={year} month={month}".
+                format(table=table, year=year, month=month, records=cursor.rowcount))
 
     except pymysql.Error as e:
         errno = e.args[0]
         if errno == 1146:    # (1146, "Table doesn't exist")
             create_table(dsn=dsn, filename=file_sql, table=table)
         else:
-            log.warning(str(e))
-            print(e)
+            log(e.args)
     cursor.close()
     db.close()
 
@@ -242,11 +242,11 @@ class FirstStep(object):
     таблицы: rss и inf
     """
 
-    def __init__(self, opts, first, firstks):
+    def __init__(self, ops, first, firstks):
+        self.ops = ops
         self.dsn = cfg.dsn_bill2
         self.db = pymysql.Connect(**self.dsn)
         self.cur = self.db.cursor()
-        self.opts = opts
         self.first = first       # словарь AtomSumDir - итоговые суммы по направлениям (MG MN VZ) для всех клиентов
         self.firstks = firstks   # словарь AtomSumDir - итоговые суммы по направлениям (MG MN VZ) для квартир. сектора
 
@@ -258,14 +258,14 @@ class FirstStep(object):
         :param delete_period: if True - delete all data in period
         :return:
         """
-        opts = self.opts
-        table_data = opts.table
+        ops = self.ops
+        table_data = ops.get('table')
         cursor = self.db.cursor()
         cursor_insert = self.db.cursor()
         table = cfg.operator[oper]['tab1']    # rss or inf
 
         # Если таблица не существует, то создаём её
-        prepare_table(dsn=self.dsn, file_sql=file_sql, table=table, year=opts.year, month=opts.month,
+        prepare_table(dsn=self.dsn, file_sql=file_sql, table=table, year=ops.get('year'), month=ops.get('month'),
                       delete_period=delete_period)
 
         # Выборка необходимых записей из YyyyyMyy и сохранение результата в rss или inf
@@ -276,12 +276,13 @@ class FirstStep(object):
             uf, cid, pid, stat, dir, sumraw, sumcust, sumoper, sumsec, summin, calls = line
             serv = stat2serv(stat)
             kwargs = dict(
-                table=table, year=opts.year, month=opts.month, cid=cid, pid=pid, uf=uf, stat=stat, serv=serv, dir=dir,
-                sumraw=sumraw, sumcust=sumcust, sumoper=sumoper, sumsec=sumsec, summin=summin, calls=calls
+                table=table, year=ops.get('year'), month=ops.get('month'), cid=cid, pid=pid, uf=uf, stat=stat,
+                serv=serv, dir=dir, sumraw=sumraw, sumcust=sumcust, sumoper=sumoper, sumsec=sumsec, summin=summin,
+                calls=calls
             )
             insert_db(cursor=cursor_insert, **kwargs)
             step += 1
-        log.info('add {step} records in `{table}`'.format(step=step, table=table))
+        log('add {step} records in `{table}`'.format(step=step, table=table))
 
         cursor.close()
         cursor = self.db.cursor()
@@ -289,7 +290,6 @@ class FirstStep(object):
         # Услуга '800' - особый случай, для клиента бесплатно, а оператор платит за инициирование вызовов
         sql = cfg.sqls['free800'].format(tableYYYYMM=table_data, minsec=cfg.calc['minsec'], operator=oper)
         cursor.execute(sql)
-        # print('__sql-800', sql)
 
         step = 0
         summin = 0
@@ -301,13 +301,12 @@ class FirstStep(object):
             stat, serv, cid, dir, uf = (q['stat'], q['serv'], q['cid'], q['dir'], 'x')
             sumraw, sumcust, sumoper = (0, 0, 0)
             kwargs = dict(
-                table=table, year=opts.year, month=opts.month, cid=cid, pid=0, uf=uf, stat=stat, serv=serv, dir=dir,
-                sumraw=sumraw, sumcust=sumcust, sumoper=sumoper, sumsec=sumsec, summin=summin, calls=calls
+                table=table, year=ops.get('year'), month=ops.get('month'), cid=cid, pid=0, uf=uf, stat=stat, serv=serv,
+                dir=dir, sumraw=sumraw, sumcust=sumcust, sumoper=sumoper, sumsec=sumsec, summin=summin, calls=calls
             )
             insert_db(cursor=cursor_insert, **kwargs)
             step += 1
-        log.info('add {step} records in `{table}` for 800-free: {summin} min`'.format
-                 (step=step, table=table, summin=summin))
+        log('add {step} records in `{table}` for 800-free: {summin} min`'.format(step=step, table=table, summin=summin))
         cursor.close()
 
     def fill_data_struct(self, oper):
@@ -316,7 +315,7 @@ class FirstStep(object):
         :param oper: 'q' or 'm'  (q => rss, m => inf)
         :return:
         """
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
 
         table = cfg.operator[oper]['tab1']
@@ -324,7 +323,7 @@ class FirstStep(object):
         sql = "SELECT `uf`, `cid`, `serv`, sum(`sumraw`) sumraw, sum(`sumcust`) sumcust, sum(`sumoper`) sumoper, " \
               "sum(`sumsec`) sumsec, sum(`summin`) summin , sum(`calls`) sumcalls FROM `{table}` " \
               "WHERE `year`={year} AND `month`={month} GROUP BY uf, cid, serv".\
-            format(table=table, year=opts.year, month=opts.month)
+            format(table=table, year=ops.get('year'), month=ops.get('month'))
         cursor.execute(sql)
         for line in cursor:
             uf, cid, serv, sumraw, sumcust, sumoper, sumsec, summin, sumcalls = line
@@ -340,7 +339,7 @@ class FirstStep(object):
                 a.setvz(sumraw, sumcust, sumoper, sumsec, summin, sumcalls)
 
             self.first[cid] = a
-        log.info("fill data struct: {records} records for oper '{oper}'(u)".format(records=len(self.first), oper=oper))
+        log("fill data struct: {records} records for oper '{oper}'(u)".format(records=len(self.first), oper=oper))
 
         cursor.close()
         cursor = self.db.cursor()
@@ -350,7 +349,7 @@ class FirstStep(object):
         sql = "SELECT `uf`, `pid`, `serv`, sum(`sumraw`) sumraw, sum(`sumcust`) sumcust, sum(`sumoper`) sumoper, " \
               "sum(`sumsec`) sumsec, sum(`summin`) summin , sum(`calls`) sumcalls FROM `{table}` " \
               "WHERE `year`={year} AND `month`={month} AND cid=549 GROUP BY uf, pid, serv".\
-            format(table=table, year=opts.year, month=opts.month)
+            format(table=table, year=ops.get('year'), month=ops.get('month'))
         cursor.execute(sql)
         for line in cursor:
             uf, pid, serv, sumraw, sumcust, sumoper, sumsec, summin, sumcalls = line
@@ -366,8 +365,7 @@ class FirstStep(object):
                 a.setvz(sumraw, sumcust, sumoper, sumsec, summin, sumcalls)
 
             self.firstks[pid] = a
-        log.info("fill data struct: {records} records for oper '{oper}'(f)".
-                 format(records=len(self.firstks), oper=oper))
+        log("fill data struct: {records} records for oper '{oper}'(f)".format(records=len(self.firstks), oper=oper))
         cursor.close()
 
     def print_info_customers(self):
@@ -399,9 +397,10 @@ class FirstStep(object):
 
 class Book(object):
     """ Работа с данными, создание книги продаж и пр. """
-    def __init__(self, opts, cust, custks, first, firstks):
+    def __init__(self, ops, cust, custks, first, firstks):
         """
         Исходные данные:
+        :param ops: параметры
         :param cust: массив данных по клиентам
         :param custks: массив данных по клиентам квартирного сектора
         :param first:   хеш - итоговые суммы по направлениям AtomSumDir
@@ -414,7 +413,7 @@ class Book(object):
         self.firstks = firstks
         self.dsn = cfg.dsn_bill2
         self.db = pymysql.Connect(**self.dsn)
-        self.opts = opts
+        self.ops = ops
 
     def __del__(self):
         self.db.close()
@@ -442,21 +441,21 @@ class Book(object):
         elif oper == 'm': data = self.firstks; custom = self.custks
 
         cursor = self.db.cursor()
-        opts = self.opts
+        ops = self.ops
 
         custs = list()
         get_custlist(data=data, uf='f', cidexclude=(cfg.free800['cid'],), custlist=custs)
 
         # последний номер извещения
-        account_fiz = ut.get_last_account(cursor, table=tab_bookf, year=opts.year)
-        if oper == 'q' and opts.year == 2015 and opts.month == 10:
+        account_fiz = ut.get_last_account(cursor, table=tab_bookf, year=ops.get('year'))
+        if oper == 'q' and ops.get('year') == 2015 and ops.get('month') == 10:
             account_fiz = 1     # особый случай - извещение с номером 1 уже есть за 2015_10 для rss (q)
-        elif oper == 'm' and opts.year == 2015 and opts.month == 11:
+        elif oper == 'm' and ops.get('year') == 2015 and ops.get('month') == 11:
             account_fiz = 1033     # особый случай
 
         sum_cust_mgmn = sum_cust_vz = nds_mgmn = nds_vz = records_book = records_bookserv = 0
 
-        period = ut.year_month2period(opts.year, opts.month, month_char='_')    # Y2015_11
+        period = ut.year_month2period(ops.get('year'), ops.get('month'), month_char='_')    # Y2015_11
         date_now = ut.sqldate(datetime.date.today())
 
         for cid in custs:
@@ -476,8 +475,8 @@ class Book(object):
             account_fiz += 1
             kwargs = dict(
                 table=tab_bookf,
-                account=account_fiz, cid=xcid, pid=xpid, period=period, year=opts.year, month=opts.month, date=date_now,
-                calls=calls, sum=sum_fiz, paydate='11111111', paysum=0, paydebt=sum_fiz, fa='+'
+                account=account_fiz, cid=xcid, pid=xpid, period=period, year=ops.get('year'), month=ops.get('month'),
+                date=date_now, calls=calls, sum=sum_fiz, paydate='11111111', paysum=0, paydebt=sum_fiz, fa='+'
             )
             insert_db(cursor=cursor, **kwargs)
             records_book += 1
@@ -496,8 +495,8 @@ class Book(object):
                 prim = "{name}({cid})".format(name=q.custalias, cid=cid) if q else '-'
                 kwargs = dict(
                     table=tab_servf,
-                    account=account_fiz, year=opts.year, month=opts.month, serv_id=serv_id, serv=serv, nn=nn, sum=sum,
-                    unit='q', amount=1, nds=nds, vsego=vsego, prim=prim
+                    account=account_fiz, year=ops.get('year'), month=ops.get('month'), serv_id=serv_id, serv=serv,
+                    nn=nn, sum=sum, unit='q', amount=1, nds=nds, vsego=vsego, prim=prim
                 )
                 insert_db(cursor=cursor, **kwargs)
                 records_bookserv += 1
@@ -509,8 +508,8 @@ class Book(object):
             nds_mgmn += xnds_mgmn
             nds_vz += xnds_vz
 
-        log.info("add {records}(f) records in `{tab_bookf}`".format(tab_bookf=tab_bookf, records=records_book))
-        log.info("add {records}(f) records in `{tab_servf}`".format(tab_servf=tab_servf, records=records_bookserv))
+        log("add {records}(f) records in `{tab_bookf}`".format(tab_bookf=tab_bookf, records=records_book))
+        log("add {records}(f) records in `{tab_servf}`".format(tab_servf=tab_servf, records=records_bookserv))
 
         vsego = ut.rnd(sum_cust_mgmn + sum_cust_vz)
         nds = ut.rnd(nds_mgmn + nds_vz)
@@ -537,14 +536,14 @@ class Book(object):
         # elif oper == 'm': data = self.firstks; custom = self.custks
 
         cursor = self.db.cursor()
-        opts = self.opts
+        ops = self.ops
 
         # последний номер извещения
-        account_fiz = ut.get_last_account(cursor, table=tab_bookf, year=opts.year)
+        account_fiz = ut.get_last_account(cursor, table=tab_bookf, year=ops.get('year'))
 
         sum_cust_mgmn = sum_cust_vz = nds_mgmn = nds_vz = records_book = records_bookserv = 0
 
-        period = ut.year_month2period(opts.year, opts.month, month_char='_')    # Y2015_11
+        period = ut.year_month2period(ops.get('year'), ops.get('month'), month_char='_')    # Y2015_11
         date_now = ut.sqldate(datetime.date.today())
 
         # физ_лица (uf=f) , кроме 549
@@ -571,8 +570,8 @@ class Book(object):
             account_fiz += 1
             kwargs = dict(
                 table=tab_bookf,
-                account=account_fiz, cid=xcid, pid=xpid, period=period, year=opts.year, month=opts.month, date=date_now,
-                calls=calls, sum=sum_fiz, paydate='11111111', paysum=0, paydebt=sum_fiz, fa='+'
+                account=account_fiz, cid=xcid, pid=xpid, period=period, year=ops.get('year'), month=ops.get('month'),
+                date=date_now, calls=calls, sum=sum_fiz, paydate='11111111', paysum=0, paydebt=sum_fiz, fa='+'
             )
             insert_db(cursor=cursor, **kwargs)
             records_book += 1
@@ -591,8 +590,8 @@ class Book(object):
                 prim = "{name}({cid})".format(name=q.custalias, cid=cid) if q else '-'
                 kwargs = dict(
                     table=tab_servf,
-                    account=account_fiz, year=opts.year, month=opts.month, serv_id=serv_id, serv=serv, nn=nn, sum=sum,
-                    unit='q', amount=1, nds=nds, vsego=vsego, prim=prim
+                    account=account_fiz, year=ops.get('year'), month=ops.get('month'), serv_id=serv_id, serv=serv,
+                    nn=nn, sum=sum, unit='q', amount=1, nds=nds, vsego=vsego, prim=prim
                 )
                 insert_db(cursor=cursor, **kwargs)
                 records_bookserv += 1
@@ -627,8 +626,8 @@ class Book(object):
             account_fiz += 1
             kwargs = dict(
                 table=tab_bookf,
-                account=account_fiz, cid=xcid, pid=xpid, period=period, year=opts.year, month=opts.month, date=date_now,
-                calls=calls, sum=sum_fiz, paydate='11111111', paysum=0, paydebt=sum_fiz, fa='+'
+                account=account_fiz, cid=xcid, pid=xpid, period=period, year=ops.get('year'), month=ops.get('month'),
+                date=date_now, calls=calls, sum=sum_fiz, paydate='11111111', paysum=0, paydebt=sum_fiz, fa='+'
             )
             insert_db(cursor=cursor, **kwargs)
             records_book += 1
@@ -647,8 +646,8 @@ class Book(object):
                 prim = "{name}({cid})".format(name=q.custalias, cid=cid) if q else '-'
                 kwargs = dict(
                     table=tab_servf,
-                    account=account_fiz, year=opts.year, month=opts.month, serv_id=serv_id, serv=serv, nn=nn, sum=sum,
-                    unit='q', amount=1, nds=nds, vsego=vsego, prim=prim
+                    account=account_fiz, year=ops.get('year'), month=ops.get('month'), serv_id=serv_id, serv=serv,
+                    nn=nn, sum=sum, unit='q', amount=1, nds=nds, vsego=vsego, prim=prim
                 )
                 insert_db(cursor=cursor, **kwargs)
                 records_bookserv += 1
@@ -660,9 +659,8 @@ class Book(object):
             nds_mgmn += xnds_mgmn
             nds_vz += xnds_vz
 
-
-        log.info("add {records}(f) records in `{tab_bookf}`".format(tab_bookf=tab_bookf, records=records_book))
-        log.info("add {records}(f) records in `{tab_servf}`".format(tab_servf=tab_servf, records=records_bookserv))
+        log("add {records}(f) records in `{tab_bookf}`".format(tab_bookf=tab_bookf, records=records_book))
+        log("add {records}(f) records in `{tab_servf}`".format(tab_servf=tab_servf, records=records_bookserv))
 
         vsego = ut.rnd(sum_cust_mgmn + sum_cust_vz)
         nds = ut.rnd(nds_mgmn + nds_vz)
@@ -680,14 +678,14 @@ class Book(object):
         :param tab_akt: таблица, куда положим результат
 
         06-08-2018 Ответ Ксении Соловьёвой на вопрос как считается плата за инициирование
-        "Плата за инициирование = сумма длительностей звонков в секундах / 60 - длительность звонков в сек. /60 на 8-800"
+        "Плата за инициирование = сумма длительностей звонков в секундах / 60 - длител. звонков в сек. /60 на 8-800"
         ( Другими словами в ПИ не влючаются звонки на 8800 )
 
         :return:
         """
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        year, month = (opts.year, opts.month)
+        year, month = (ops.get('year'), ops.get('month'))
         period = ut.year_month2period(year, month, month_char='_')  # Y2016_01
         pikoff = cfg.operator[oper]['pikoff']   # сейчас 0.23
 
@@ -733,7 +731,7 @@ class Book(object):
         :param delete_period:   if True - delete all data in period
         :return:
         """
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
         tab1 = cfg.operator[oper]['tab1']           # rss - исходная таблица
         tab_book = cfg.operator[oper]['book']       # rss_book - книга продаж (юл)
@@ -743,19 +741,19 @@ class Book(object):
         tab_akt = cfg.operator[oper]['akt']         # rss_akt - акт сдачи-приёмки
 
         # Если таблицы не существует, то создаём её
-        prepare_table(dsn=self.dsn, file_sql=file_tab_book, table=tab_book, year=opts.year, month=opts.month,
-                      delete_period=delete_period)
-        prepare_table(dsn=self.dsn, file_sql=file_tab_bookf, table=tab_bookf, year=opts.year, month=opts.month,
-                      delete_period=delete_period)
-        prepare_table(dsn=self.dsn, file_sql=file_tab_serv, table=tab_serv, year=opts.year, month=opts.month,
-                      delete_period=delete_period)
-        prepare_table(dsn=self.dsn, file_sql=file_tab_serv, table=tab_servf, year=opts.year, month=opts.month,
-                      delete_period=delete_period)
-        prepare_table(dsn=self.dsn, file_sql=file_tab_akt, table=tab_akt, year=opts.year, month=opts.month,
-                      delete_period=delete_period)
+        prepare_table(dsn=self.dsn, file_sql=file_tab_book, table=tab_book, year=ops.get('year'),
+                      month=ops.get('month'), delete_period=delete_period)
+        prepare_table(dsn=self.dsn, file_sql=file_tab_bookf, table=tab_bookf, year=ops.get('year'),
+                      month=ops.get('month'), delete_period=delete_period)
+        prepare_table(dsn=self.dsn, file_sql=file_tab_serv, table=tab_serv, year=ops.get('year'),
+                      month=ops.get('month'), delete_period=delete_period)
+        prepare_table(dsn=self.dsn, file_sql=file_tab_serv, table=tab_servf, year=ops.get('year'),
+                      month=ops.get('month'), delete_period=delete_period)
+        prepare_table(dsn=self.dsn, file_sql=file_tab_akt, table=tab_akt, year=ops.get('year'),
+                      month=ops.get('month'), delete_period=delete_period)
 
         # сбор данных
-        period1, period2 = ut.dateperiod(opts.year, opts.month)[1:]
+        period1, period2 = ut.dateperiod(ops.get('year'), ops.get('month'))[1:]
         period1 = ut.sqldate(period1)     # 20151101
         period2 = ut.sqldate(period2)     # 20151130
         date = datesf = period2           # 20151130
@@ -766,13 +764,13 @@ class Book(object):
 
         unit, amount = ('q', 1)
 
-        account = ut.get_last_account(cursor, table=tab_book, year=opts.year)  # последний номер счёта
+        account = ut.get_last_account(cursor, table=tab_book, year=ops.get('year'))  # последний номер счёта
 
         if oper == 'q':
-            if opts.year == 2015 and opts.month == 10:
+            if ops.get('year') == 2015 and ops.get('month') == 10:
                 account = 152   # особый случай, для 2015_10 последний счёт должен быть 152
         elif oper == 'm':
-            if opts.year == 2015 and opts.month == 11:
+            if ops.get('year') == 2015 and ops.get('month') == 11:
                 account = 381   # особый случай
 
         # юридические лица
@@ -802,10 +800,10 @@ class Book(object):
             # a) книга продаж - итоги для клиента - одна строка на все услуги - один счёт
             kwargs = dict(
                 table=tab_book,
-                account=account, year=opts.year, month=opts.month, kat_id=kat_id, fx=fx, date=date, rash_id=rash_id,
-                title_id=title_id, cid=cid, sf=sf, datesf=datesf, pt=pt, datept=datept, period1=period1,
-                period2=period2, fperiod=boolsql(fperiod), sum=sum, nds=nds, vsego=vsego, dateopl=dateopl,
-                sumopl=sumopl, dolg=dolg, sumbook=sumbook, prim=prim, fbreak=boolsql(fbreak), uf=uf
+                account=account, year=ops.get('year'), month=ops.get('month'), kat_id=kat_id, fx=fx, date=date,
+                rash_id=rash_id, title_id=title_id, cid=cid, sf=sf, datesf=datesf, pt=pt, datept=datept,
+                period1=period1, period2=period2, fperiod=boolsql(fperiod), sum=sum, nds=nds, vsego=vsego,
+                dateopl=dateopl, sumopl=sumopl, dolg=dolg, sumbook=sumbook, prim=prim, fbreak=boolsql(fbreak), uf=uf
             )
             insert_db(cursor=cursor, **kwargs)
             records_book += 1
@@ -821,13 +819,13 @@ class Book(object):
 
                 kwargs = dict(
                     table=tab_serv,
-                    account=account, year=opts.year, month=opts.month, serv_id=serv_id, serv=serv, nn=nn, sum=sum,
-                    unit=unit, amount=amount, nds=nds, vsego=vsego, prim=prim
+                    account=account, year=ops.get('year'), month=ops.get('month'), serv_id=serv_id, serv=serv, nn=nn,
+                    sum=sum, unit=unit, amount=amount, nds=nds, vsego=vsego, prim=prim
                 )
                 insert_db(cursor=cursor, **kwargs)
                 records_bookserv += 1
-        log.info("add {records}(u) records in `{tab_book}`".format(tab_book=tab_book, records=records_book))
-        log.info("add {records}(u) records in `{tab_serv}`".format(tab_serv=tab_serv, records=records_bookserv))
+        log("add {records}(u) records in `{tab_book}`".format(tab_book=tab_book, records=records_book))
+        log("add {records}(u) records in `{tab_serv}`".format(tab_serv=tab_serv, records=records_bookserv))
 
         # физические лица:
         # a) итоги (МГ+ВЗ) по каждому физлицу в книге извещений tab_bookf
@@ -840,13 +838,13 @@ class Book(object):
             # b) суммарно по всем физлицам - одна строка в книге продаж для юрлиц tab_book с номером счёта=0
             kwargs = dict(
                 table=tab_book,
-                account=0, year=opts.year, month=opts.month, kat_id=kat_id, fx=fx, date=date, rash_id=rash_id,
-                title_id=title_id, cid=549, sf=0, datesf=datesf, pt=0, datept=datept, period1=period1,
+                account=0, year=ops.get('year'), month=ops.get('month'), kat_id=kat_id, fx=fx, date=date,
+                rash_id=rash_id, title_id=title_id, cid=549, sf=0, datesf=datesf, pt=0, datept=datept, period1=period1,
                 period2=period2, fperiod=boolsql(fperiod), sum=sum, nds=nds, vsego=vsego, dateopl=dateopl,
                 sumopl=sumopl, dolg=vsego, sumbook=sumbook, prim=prim, fbreak=boolsql(fbreak), uf='f'
             )
             insert_db(cursor=cursor, **kwargs)
-            log.info("add {records}(f) records in `{tab_book}`".format(tab_book=tab_book, records=1))
+            log("add {records}(f) records in `{tab_book}`".format(tab_book=tab_book, records=1))
 
         elif oper == 'q':
             # a) итоги (МГ+ВЗ) по каждому физлицу в книге извещений tab_bookf
@@ -854,13 +852,13 @@ class Book(object):
             # b) суммарно по всем физлицам - одна строка в книге продаж для юрлиц tab_book с номером счёта=0
             kwargs = dict(
                 table=tab_book,
-                account=0, year=opts.year, month=opts.month, kat_id=kat_id, fx=fx, date=date, rash_id=rash_id,
-                title_id=title_id, cid=549, sf=0, datesf=datesf, pt=0, datept=datept, period1=period1,
+                account=0, year=ops.get('year'), month=ops.get('month'), kat_id=kat_id, fx=fx, date=date,
+                rash_id=rash_id, title_id=title_id, cid=549, sf=0, datesf=datesf, pt=0, datept=datept, period1=period1,
                 period2=period2, fperiod=boolsql(fperiod), sum=sum, nds=nds, vsego=vsego, dateopl=dateopl,
                 sumopl=sumopl, dolg=vsego, sumbook=sumbook, prim=prim, fbreak=boolsql(fbreak), uf='f'
             )
             insert_db(cursor=cursor, **kwargs)
-            log.info("add {records}(f) records in `{tab_book}`".format(tab_book=tab_book, records=1))
+            log("add {records}(f) records in `{tab_book}`".format(tab_book=tab_book, records=1))
 
         self.create_akt(oper=oper, tab1=tab1, tab_akt=tab_akt)
         cursor.close()
@@ -883,8 +881,8 @@ class OperatorData(object):
     """
     Создаются файлы для выгрузки оператору
     """
-    def __init__(self, opts, oper, reports, files, cust, custks):
-        self.opts = opts
+    def __init__(self, ops, oper, reports, files, cust, custks):
+        self.ops = ops
         self.oper = oper
         self.reports = reports
         self.files = files
@@ -892,7 +890,6 @@ class OperatorData(object):
         self.custks = custks
         self.dsn = cfg.dsn_bill2
         self.db = pymysql.Connect(**self.dsn)
-        self.opts = opts
 
     def __del__(self):
         self.db.close()
@@ -913,35 +910,35 @@ class OperatorDataRss(OperatorData):
         """
         # год; месяц; дата счёта; номер счёта; абонент; инн; кпп; дата оплаты; всего; стоим без ндс18; ндс18;
         # стоим без ндс10; ндс10; стоим с ндс0; освобождённые
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        tab_book = cfg.operator[oper]['book']       # rss-book - книга продаж (юл)
-        tab_bookf = cfg.operator[oper]['bookf']     # rss-bookf - книга извещений (фл)
-        tab_serv = cfg.operator[oper]['serv']       # rss-serv - подробно по напр. для rss-book
-        tab_servf = cfg.operator[oper]['servf']     # rss-servf - физлица подробно по напр. для rss-bookf
+        tab_book = cfg.operator[self.oper]['book']       # rss-book - книга продаж (юл)
+        tab_bookf = cfg.operator[self.oper]['bookf']     # rss-bookf - книга извещений (фл)
+        tab_serv = cfg.operator[self.oper]['serv']       # rss-serv - подробно по напр. для rss-book
+        tab_servf = cfg.operator[self.oper]['servf']     # rss-servf - физлица подробно по напр. для rss-bookf
 
         sum_sum, sum_nds, sum_vsego = (0, 0, 0)
         f = open(filename, "wt", encoding='utf8')
         sql = "SELECT `account`, `date`, `cid`, `uf`, `sum`, `nds`, `vsego` FROM `{table}` WHERE `year`='{year}' " \
-              "AND `month`='{month}' ORDER BY `id`".format(table=tab_book, year=opts.year, month=opts.month)
+              "AND `month`='{month}' ORDER BY `id`".format(table=tab_book, year=ops.get('year'), month=ops.get('month'))
         cursor.execute(sql)
         for line in cursor:
             account, date, cid, uf, sum, nds, vsego = line
             sum_sum += sum; sum_nds += nds; sum_vsego += vsego
             vsego, sum, nds = (ut.dec(vsego), ut.dec(sum), ut.dec(nds))
             if uf == 'u':
-                q = cust.get_cust(cid)
+                q = self.cust.get_cust(cid)
                 abonent, inn, kpp = (ut.double_q(q.custname), ut.inn(q.inn), ut.kpp(q.kpp))
             else:
                 abonent, inn, kpp = ('"Физические лица"', '000000000000', '000000000')
 
             st = "{year};{month};{date};{prefix}-{account};{abonent};{inn};{kpp};{dataopl};" \
                  "{vsego};{sum20};{nds20};{sum18};{nds18};{sum10};{nds10};{sum0};{free}".\
-                format(year=opts.year, month=opts.month, date=ut.formatdate(date, '.'), account=account,
+                format(year=ops.get('year'), month=ops.get('month'), date=ut.formatdate(date, '.'), account=account,
                        abonent=abonent, inn=inn, kpp=kpp, dataopl='', vsego=vsego,
                        sum20=sum, nds20=nds,
                        sum18='', nds18='',
-                       sum10='', nds10='', sum0='', free='', prefix=cfg.operator[oper]['prefix'])
+                       sum10='', nds10='', sum0='', free='', prefix=cfg.operator[self.oper]['prefix'])
             f.write(st + '\n')
 
         f.close()
@@ -957,7 +954,7 @@ class OperatorDataRss(OperatorData):
         :return:
         """
         if dog_date == '11.11.1111' or dog_date == None:
-            log.warning("cust: {cid} have wrong dog date".format(cid=cid))
+            log("cust: {cid} have wrong dog date".format(cid=cid))
 
     def create_detal(self, filename, result):
         """
@@ -967,19 +964,20 @@ class OperatorDataRss(OperatorData):
         :return: кортеж итогов (sum, nds, vsego)
         """
         # год; месяц; абонент; номер договора; дата договора;сумма с ндс;
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        tab_book = cfg.operator[oper]['book']       # rss-book - книга продаж (юл)
-        tab_bookf = cfg.operator[oper]['bookf']     # rss-bookf - книга извещений (фл)
-        tab_serv = cfg.operator[oper]['serv']       # rss-serv - подробно по напр. для rss-book
-        tab_servf = cfg.operator[oper]['servf']     # rss-servf - физлица подробно по напр. для rss-bookf
+        tab_book = cfg.operator[self.oper]['book']       # rss-book - книга продаж (юл)
+        tab_bookf = cfg.operator[self.oper]['bookf']     # rss-bookf - книга извещений (фл)
+        tab_serv = cfg.operator[self.oper]['serv']       # rss-serv - подробно по напр. для rss-book
+        tab_servf = cfg.operator[self.oper]['servf']     # rss-servf - физлица подробно по напр. для rss-bookf
 
         sum_sum, sum_nds, sum_vsego = (0, 0, 0)
         f = open(filename, "wt", encoding='utf8')
         # юрлица
         sql = "SELECT `account`, `date`, `cid`, `uf`, `sum`, `nds`, `vsego` FROM `{table}` WHERE `year`='{year}' " \
-              "AND `month`='{month}' AND `uf`='u' ORDER BY `id`".format(table=tab_book, year=opts.year, month=opts.month
-        )
+              "AND `month`='{month}' AND `uf`='u' ORDER BY `id`".\
+            format(table=tab_book, year=ops.get('year'), month=ops.get('month'))
+
         cursor.execute(sql)
         for line in cursor:
             account, date, cid, uf, sum, nds, vsego = line
@@ -988,7 +986,8 @@ class OperatorDataRss(OperatorData):
             q = self.cust.get_cust(cid)
             abonent, dog_number, dog_date = (ut.double_q(q.custname), q.dog_rss, ut.formatdate(q.dog_date_rss, '.'))
             st = "{year};{month};{abonent};{dog_number};{dog_date};{vsego}".format(
-                year=opts.year, month=opts.month, abonent=abonent, dog_number=dog_number, dog_date=dog_date, vsego=vsego
+                year=ops.get('year'), month=ops.get('month'), abonent=abonent, dog_number=dog_number,
+                dog_date=dog_date, vsego=vsego
             )
             f.write(st + '\n')
             self.check_dogdate(cid, dog_date)
@@ -996,7 +995,7 @@ class OperatorDataRss(OperatorData):
         # физлица делятся на физлица (в таблице клиентов uf=f ) и на кв_сектор
         # физлица (cid<>549)
         sql = "SELECT `cid`, `pid`, `sum`, `account` FROM `{table}` WHERE `year`='{year}' AND `month`='{month}' " \
-              "and cid <>549 ORDER BY `id`".format(table=tab_bookf, year=opts.year, month=opts.month)
+              "and cid <>549 ORDER BY `id`".format(table=tab_bookf, year=ops.get('year'), month=ops.get('month'))
         alist = list()  # этот список счетов исключим из второго запроса(ниже)
         cursor.execute(sql)
         for line in cursor:
@@ -1006,7 +1005,8 @@ class OperatorDataRss(OperatorData):
             q = self.cust.get_cust(cid)
             abonent, dog_number, dog_date = (ut.double_q(q.custname), q.dog_rss, ut.formatdate(q.dog_date_rss, '.'))
             st = "{year};{month};{abonent};{dog_number};{dog_date};{vsego}".format(
-                year=opts.year, month=opts.month, abonent=abonent, dog_number=dog_number, dog_date=dog_date, vsego=sum)
+                year=ops.get('year'), month=ops.get('month'), abonent=abonent, dog_number=dog_number,
+                dog_date=dog_date, vsego=sum)
             f.write(st + '\n')
             self.check_dogdate(cid, dog_date)
 
@@ -1015,7 +1015,7 @@ class OperatorDataRss(OperatorData):
         # кв_сектор(549): нет договоров с МТС, поэтому по регламенту МТС все такие физ-лица одной строкой
         sql = "SELECT sum(`sum`) `sum`, sum(`nds`) `nds`, sum(`vsego`) `vsego` FROM `{tab_servf}` " \
               "WHERE `year`='{year}' AND `month`='{month}' ".\
-            format(tab_servf=tab_servf, year=opts.year, month=opts.month)
+            format(tab_servf=tab_servf, year=ops.get('year'), month=ops.get('month'))
 
         if len(accounts) > 0:
             sql += " AND `account` NOT IN ({accounts})".format(accounts=accounts)
@@ -1025,8 +1025,9 @@ class OperatorDataRss(OperatorData):
         if sum_f:
             sum_vsego += ut.rnd(sum_f); sum_nds += ut.rnd(nds_f); sum_sum += ut.rnd(vsego_f)
             abonent, dog_number, dog_date = ('"Физические лица"', '---', '01.01.1900')
-            st = "{year};{month};{abonent};{dog_number};{dog_date};{vsego}".format(year=opts.year,
-                month=opts.month, abonent=abonent, dog_number=dog_number, dog_date=dog_date, vsego=sum_f)
+            st = "{year};{month};{abonent};{dog_number};{dog_date};{vsego}".\
+                format(year=ops.get('year'), month=ops.get('month'), abonent=abonent, dog_number=dog_number,
+                       dog_date=dog_date, vsego=sum_f)
             f.write(st + '\n')
         # -----
 
@@ -1044,9 +1045,9 @@ class OperatorDataRss(OperatorData):
         :return: кортеж итогов (sum, nds, vsego)
         """
         # год; месяц; вид услуги; направление; код направления; минуты; стоимость без ндс; ндс; лицевой счёт МТС
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        tab1 = cfg.operator[oper]['tab1']       # rss - исходная итоговая таблица
+        tab1 = cfg.operator[self.oper]['tab1']       # rss - исходная итоговая таблица
         cds = Codemts(dsn=cfg.dsn_tar, table='komstarCode')     # cds['Австрия'] => 43
 
         f = open(filename, "wt", encoding='utf8')
@@ -1054,8 +1055,8 @@ class OperatorDataRss(OperatorData):
         # f2 = open(filename2, "wt", encoding='utf8')
 
         sql = "SELECT `serv`, `dir`, sum(`sumraw`) `sumraw`, sum(`summin`) `summin` FROM `{table}` " \
-              "WHERE `year`='{year}' AND `month`='{month}' GROUP BY `serv`, `dir`".format(
-            table=tab1, year=opts.year, month=opts.month
+              "WHERE `year`='{year}' AND `month`='{month}' GROUP BY `serv`, `dir`".\
+            format(table=tab1, year=ops.get('year'), month=ops.get('month')
         )
         cursor.execute(sql)
         sum_sum, sum_nds, sum_vsego = (0, 0, 0)
@@ -1065,9 +1066,9 @@ class OperatorDataRss(OperatorData):
 
             if diff and (abs(diff.sum) + abs(diff.nds)) != 0:
                 if dir == diff.dir:
-                    log.info("+ amount: {dir} sum: {sumraw} + {dsum} = {sss}".format(
+                    log("+ amount: {dir} sum: {sumraw} + {dsum} = {sss}".format(
                         dir=dir, sumraw=sumraw, dsum=diff.sum, sss=sumraw + diff.sum))
-                    log.info("+ amount: {dir} nds: {nds} + {dnds} = {sss}".format(
+                    log("+ amount: {dir} nds: {nds} + {dnds} = {sss}".format(
                         dir=dir, nds=nds, dnds=diff.nds, sss=nds + diff.nds))
                     sumraw += diff.sum
                     nds += diff.nds
@@ -1085,8 +1086,8 @@ class OperatorDataRss(OperatorData):
 
             # в новом формате НДС убрали
             st = "{year};{month};{serv};{dir};{code};{min};{sum};{account}".format(
-                year=opts.year, month=opts.month, serv=serv, dir=dir, code=code, min=summin, sum=sumraw,
-                account=cfg.operator[oper]['account']
+                year=ops.get('year'), month=ops.get('month'), serv=serv, dir=dir, code=code, min=summin, sum=sumraw,
+                account=cfg.operator[self.oper]['account']
             )
             f.write(st + '\n')
 
@@ -1110,16 +1111,16 @@ class OperatorDataRss(OperatorData):
         # МГ: sum: xxxx,xx nds: xxxx,xx vsego: xxxx,xx
         # МН: sum: xxxx,xx nds: xxxx,xx vsego: xxxx,xx
 
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        tab1 = cfg.operator[oper]['tab1']       # rss- исходная итоговая таблица
+        tab1 = cfg.operator[self.oper]['tab1']       # rss- исходная итоговая таблица
 
         f = open(filename, "wt", encoding='utf8')
         out = dict()
         sum_sum, sum_nds, sum_vsego, sum_min = (0, 0, 0, 0)
         sql = "SELECT `serv`, sum(`sumraw`) `sumraw`, sum(`summin`) `summin` FROM `{table}` " \
               "WHERE `year`='{year}' AND `month`='{month}' GROUP BY `serv`".format(
-                table=tab1, year=opts.year, month=opts.month)
+                table=tab1, year=ops.get('year'), month=ops.get('month'))
         cursor.execute(sql)
         for line in cursor:
             serv, sumraw, summin = line
@@ -1127,9 +1128,9 @@ class OperatorDataRss(OperatorData):
 
             if diff and (abs(diff.sum) + abs(diff.nds)) != 0:
                 if serv == diff.serv:
-                    log.info("+ total: {serv} sum: {sumraw} + {dsum} = {sss}".format(
+                    log("+ total: {serv} sum: {sumraw} + {dsum} = {sss}".format(
                         serv=serv, sumraw=sumraw, dsum=diff.sum, sss=sumraw + diff.sum))
-                    log.info("+ total: {serv} nds: {nds} + {dnds} = {sss}".format(
+                    log("+ total: {serv} nds: {nds} + {dnds} = {sss}".format(
                         serv=serv, nds=nds, dnds=diff.nds, sss=nds + diff.nds))
                     sumraw += diff.sum
                     nds += diff.nds
@@ -1162,9 +1163,9 @@ class OperatorDataRss(OperatorData):
         :param result: для возврата как: result.sum, result.nds, result.vsego
         :return: кортеж итогов (sum, nds, vsego)
         """
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        year, month = (opts.year, opts.month)
+        year, month = (ops.get('year'), ops.get('month'))
         tab_akt = cfg.operator[oper]['akt']       # rss_akt
         sql = "SELECT sum(`sum`) FROM `{table}` WHERE `year`='{year}' AND `month`='{month}'".format(
             table=tab_akt, year=year, month=month)
@@ -1182,9 +1183,9 @@ class OperatorDataRss(OperatorData):
         :param dsum: несколько копеек
         :return:
         """
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        year, month = (opts.year, opts.month)
+        year, month = (ops.get('year'), ops.get('month'))
         tab_akt = cfg.operator[oper]['akt']       # rss_akt
 
         sql = "SELECT `sum`, `us`, `pi` FROM `{table}` WHERE `year`='{year}' AND `month`='{month}' AND `stat`='{stat}'".\
@@ -1202,8 +1203,8 @@ class OperatorDataRss(OperatorData):
         cursor.execute(sql)
         cursor.close()
 
-        log.info("+ akt update `{table}` set `sum`: {sum}+{dsum}={nsum}, av={av}, nds={nds} where `stat`='{stat}'".
-                 format(table=tab_akt, sum=sum, dsum=dsum, nsum=nsum, stat=stat, av=av, nds=nds))
+        log("+ akt update `{table}` set `sum`: {sum}+{dsum}={nsum}, av={av}, nds={nds} where `stat`='{stat}'".
+            format(table=tab_akt, sum=sum, dsum=dsum, nsum=nsum, stat=stat, av=av, nds=nds))
 
     def create_files_rss(self):
         """ создание файлов для выгрузки оператору для РСС  """
@@ -1294,9 +1295,9 @@ class OperatorDataInf(OperatorData):
         # год; месяц; дата счёта; номер счёта; абонент; инн; кпп; дата оплаты; всего; стоим без ндс18; ндс18;
         # стоим без ндс10; ндс10; стоим с ндс0; освобождённые
         oper = self.oper
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        year, month = (opts.year, opts.month)
+        year, month = (ops.get('year'), ops.get('month'))
         tab_book = cfg.operator[oper]['book']       # inf_book - книга продаж (юл)
         tab_bookf = cfg.operator[oper]['bookf']     # inf_bookf - книга извещений (фл)
         tab_serv = cfg.operator[oper]['serv']       # inf_serv - подробно по напр. для rss-book
@@ -1317,13 +1318,14 @@ class OperatorDataInf(OperatorData):
             account, date, cid, sum, nds, vsego = line
             sum_sum += sum; sum_nds += nds; sum_vsego += vsego
             vsego, sum, nds = (ut.dec(vsego), ut.dec(sum), ut.dec(nds))
-            q = cust.get_cust(cid)
+            q = self.cust.get_cust(cid)
             abonent, inn, kpp = (ut.double_q(q.custname), ut.inn(q.inn), ut.kpp(q.kpp))
 
             st = "{year};{month};{date};{prefix}-{account};{abonent};{inn};{kpp};{dataopl};{vsego18};{sum18};{nds18};" \
-                 "{sum10};{nds10};{sum0};{free}".format(year=year, month=month, date=ut.formatdate(date, '.'),
-                    account=account,abonent=abonent, inn=inn, kpp=kpp, dataopl='', vsego18=vsego, sum18=sum, nds18=nds,
-                    sum10='', nds10='', sum0='', free='', prefix=cfg.operator[oper]['prefix'])
+                 "{sum10};{nds10};{sum0};{free}".\
+                format(year=year, month=month, date=ut.formatdate(date, '.'), account=account, abonent=abonent, inn=inn,
+                       kpp=kpp, dataopl='', vsego18=vsego, sum18=sum, nds18=nds, sum10='', nds10='', sum0='', free='',
+                       prefix=cfg.operator[oper]['prefix'])
             f.write(st + '\n')
 
         # физлица
@@ -1336,9 +1338,10 @@ class OperatorDataInf(OperatorData):
             sum_f = nds_f = vsego_f = 0
         abonent, inn, kpp, account = ('"Физические лица"', '000000000000', '000000000', '000')
         st = "{year};{month};{date};{prefix}-{account};{abonent};{inn};{kpp};{dataopl};{vsego18};{sum18};{nds18};" \
-             "{sum10};{nds10};{sum0};{free}".format(year=year, month=month, date=ut.formatdate(date, '.'),
-            account=account,abonent=abonent, inn=inn, kpp=kpp, dataopl='', vsego18=vsego_f, sum18=sum_f, nds18=nds_f,
-            sum10='', nds10='', sum0='', free='', prefix=cfg.operator[oper]['prefix'])
+             "{sum10};{nds10};{sum0};{free}".\
+            format(year=year, month=month, date=ut.formatdate(date, '.'), account=account,abonent=abonent, inn=inn,
+                   kpp=kpp, dataopl='', vsego18=vsego_f, sum18=sum_f, nds18=nds_f, sum10='', nds10='', sum0='',
+                   free='', prefix=cfg.operator[oper]['prefix'])
         f.write(st + '\n')
 
         f.close()
@@ -1357,9 +1360,9 @@ class OperatorDataInf(OperatorData):
 
         # год; месяц; абонент; номер договора; дата договора;сумма с ндс;
         oper = self.oper
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        year, month = (opts.year, opts.month)
+        year, month = (ops.get('year'), ops.get('month'))
         tab_book = cfg.operator[oper]['book']       # inf_book - книга продаж (юл)
         tab_bookf = cfg.operator[oper]['bookf']     # inf_bookf - книга извещений (фл)
         tab_serv = cfg.operator[oper]['serv']       # inf_serv - подробно по напр. для inf_book
@@ -1416,9 +1419,9 @@ class OperatorDataInf(OperatorData):
         """
         # год; месяц; вид услуги; направление; код направления; минуты; стоимость без ндс; ндс; лицевой счёт МТС
         oper = self.oper
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        year, month = (opts.year, opts.month)
+        year, month = (ops.get('year'), ops.get('month'))
         tab1 = cfg.operator[oper]['tab1']       # inf - исходная итоговая таблица
         serv2files = dict(VZ="'VZ'", MG="'MG','MN'")
         cds = Codemts(dsn=cfg.dsn_tar, table='komstarCode')     # cds['Австрия'] => 43
@@ -1439,9 +1442,9 @@ class OperatorDataInf(OperatorData):
 
             if diff and (abs(diff.sum) + abs(diff.nds)) != 0:
                 if dir == diff.dir:
-                    log.info("+ amount: {dir} sum: {sumraw} + {dsum} = {sss}".format(
+                    log("+ amount: {dir} sum: {sumraw} + {dsum} = {sss}".format(
                         dir=dir, sumraw=sumraw, dsum=diff.sum, sss=sumraw + diff.sum))
-                    log.info("+ amount: {dir} nds: {nds} + {dnds} = {sss}".format(
+                    log("+ amount: {dir} nds: {nds} + {dnds} = {sss}".format(
                         dir=dir, nds=nds, dnds=diff.nds, sss=nds + diff.nds))
                     sumraw += diff.sum
                     nds += diff.nds
@@ -1481,16 +1484,16 @@ class OperatorDataInf(OperatorData):
         # МГ: sum: xxxx,xx nds: xxxx,xx vsego: xxxx,xx
         # МН: sum: xxxx,xx nds: xxxx,xx vsego: xxxx,xx
 
-        opts = self.opts
+        ops = self.ops
         cursor = self.db.cursor()
-        tab1 = cfg.operator[oper]['tab1']       # rss- исходная итоговая таблица
+        tab1 = cfg.operator[self.oper]['tab1']       # rss- исходная итоговая таблица
 
         f = open(filename, "wt", encoding='utf8')
         out = dict()
         sum_sum, sum_nds, sum_vsego, sum_min = (0, 0, 0, 0)
         sql = "SELECT `serv`, sum(`sumraw`) `sumraw`, sum(`summin`) `summin` FROM `{table}` " \
               "WHERE `year`='{year}' AND `month`='{month}' GROUP BY `serv`".format(
-                table=tab1, year=opts.year, month=opts.month)
+                table=tab1, year=ops.get('year'), month=ops.get('month'))
         cursor.execute(sql)
         for line in cursor:
             serv, sumraw, summin = line
@@ -1498,9 +1501,9 @@ class OperatorDataInf(OperatorData):
 
             if diff and (abs(diff.sum) + abs(diff.nds)) != 0:
                 if serv == diff.serv:
-                    log.info("+ total: {serv} sum: {sumraw} + {dsum} = {sss}".format(
+                    log("+ total: {serv} sum: {sumraw} + {dsum} = {sss}".format(
                         serv=serv, sumraw=sumraw, dsum=diff.sum, sss=sumraw + diff.sum))
-                    log.info("+ total: {serv} nds: {nds} + {dnds} = {sss}".format(
+                    log("+ total: {serv} nds: {nds} + {dnds} = {sss}".format(
                         serv=serv, nds=nds, dnds=diff.nds, sss=nds + diff.nds))
                     sumraw += diff.sum
                     nds += diff.nds
@@ -1614,17 +1617,19 @@ class Codemts(object):
         # sql = cfg.sqls['free800'].format(tableYYYYMM=table_data, minsec=cfg.calc['minsec'], operator=oper)
         # cursor.execute(sql)
 
-def update_rss_bookf(dsn, period):
+def update_rss_bookf(dsn, year, month):
     """
     Обновление таблицы bill.rss_bookf перед формирование результатов за период (result)
-    :param dsn: DSN
-    :param period: период напр. 2021_03
+    :param dsn: DSN - параметры подключения к БД
+    :param year: год, напр. 2021, 2022, ..
+    :param month: месяц, напр. 1,2..12
     :return: количество обновлённых записей
     """
     db = pymysql.connect(**dsn)
     cursor = db.cursor()
 
-    sql = "update rss_bookf b JOIN customers.CustKS ks ON b.pid=ks.pid SET b.xcid=ks.cid where b.period='Y{period}'".\
+    period = 'Y{year:04d}_{month:02d}'.format(year=int(year), month=int(month))  # Y2022_01
+    sql = "update rss_bookf b JOIN customers.CustKS ks ON b.pid=ks.pid SET b.xcid=ks.cid where b.period='{period}'".\
         format(period=period)
 
     cursor.execute(sql)
@@ -1637,52 +1642,22 @@ def update_rss_bookf(dsn, period):
     return updated_rows
 
 
-if __name__ == '__main__':
-    p = optparse.OptionParser(description="Create reports for operator MTS",
-                              prog="reports.py", version="0.1a", usage="reports.py --year=year --month=month [--log=namefile]")
+def main(year, month, oper='q'):
+    # oper='q' (a2) ; oper='m' (rsi)
 
-    # p.add_option('--tab', '-t', action='store', dest='table', help='table, ex.Y2015M11')
-    # p.add_option('--log', '-l', action='store', dest='log', default='log/report.log', help='logfile')
-
-    p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
-    p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
-    p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
-    p.add_option("--reset", "-r",
-                 action="store_true", dest="reset", default=False,
-                 help="option only for compatibility with bill.py")
-
-    opts, args = p.parse_args()
-
-    # параметры в командной строке - в приоритете
-    if not (opts.year and opts.month):
-        opts.year = ini.year
-        opts.month = ini.month
-
-    opts.table = ut.year_month2period(year=opts.year, month=opts.month)
-
-    opts.file_tab1 = "{path}{file}".format(path=pathsql, file='tab_tab1.sql')
-    opts.file_tab_book = "{path}{file}".format(path=pathsql, file='tab_book.sql')
-    opts.file_tab_serv = "{path}{file}".format(path=pathsql, file='tab_serv.sql')
-    opts.file_tab_bookf = "{path}{file}".format(path=pathsql, file='tab_bookf.sql')
-    opts.file_tab_akt = "{path}{file}".format(path=pathsql, file='tab_akt.sql')
-
-    if not opts.table or not opts.log:
-        print(p.print_help())
-        exit(1)
-
-    # update rss_bookf b JOIN customers.CustKS ks ON b.pid=ks.pid SET b.xcid=ks.cid where b.period='Y2021_02';
-    # rows = update_rss_bookf(dsn=cfg.dsn_bill2, period=ini.period)
-    # xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results)
-    # xls.create_file()
-    # exit(1)
-
-try:
-    logging.basicConfig(
-        filename=opts.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
+    ops = dict()
+    ops.setdefault('year', year)
+    ops.setdefault('month', month)
+    ops.setdefault('table', ut.year_month2period(year=year, month=month))
+    ops.setdefault('file_tab1', "{path}{file}".format(path=pathsql, file='tab_tab1.sql'))
+    ops.setdefault('file_tab_book', "{path}{file}".format(path=pathsql, file='tab_book.sql'))
+    ops.setdefault('file_tab_serv', "{path}{file}".format(path=pathsql, file='tab_serv.sql'))
+    ops.setdefault('file_tab_bookf', "{path}{file}".format(path=pathsql, file='tab_bookf.sql'))
+    ops.setdefault('file_tab_akt', "{path}{file}".format(path=pathsql, file='tab_akt.sql'))
 
     t1 = time.time()
-    log = logging.getLogger('app')
     bar = Progressbar(info='reports for MTS', maximum=100)
+    table = ut.year_month2period(year=year, month=month)
 
     # данные по клиентам
     cust = customers.Cust(dsn=cfg.dsn_bill2)
@@ -1694,15 +1669,14 @@ try:
     bar.update_progress(1)
 
     # 1) сбор итоговых данных в таблицы
-    oper = 'q'  # q=a2/rss ; m=rsi
 
     # данные
     first = dict()  # исходные данные для формирования книг продаж
     firstks = dict()  # исходные данные для формирования книги извещений для rsi
-    ob = FirstStep(opts, first=first, firstks=firstks)
+    ob = FirstStep(ops, first=first, firstks=firstks)
 
     # сбор первичных данных в таблицу rss(q) или rsi(m)
-    ob.prepare_data(oper=oper, file_sql=opts.file_tab1, delete_period=True)
+    ob.prepare_data(oper=oper, file_sql=ops.get('file_tab1'), delete_period=True)
 
     # наполнение структур данными
     ob.fill_data_struct(oper=oper)
@@ -1712,54 +1686,66 @@ try:
     bar.update_progress(63)
 
     # создание книги продаж и книги извещений: rss-book, rss-bookf, rss-serv, rss-servf
-    bk = Book(opts, cust=custitems, custks=custksitems, first=first, firstks=firstks)
-    bk.create_book(oper=oper, file_tab_book=opts.file_tab_book, file_tab_serv=opts.file_tab_serv,
-                   file_tab_bookf=opts.file_tab_bookf, file_tab_akt=opts.file_tab_akt,  delete_period=True)
+    bk = Book(ops, cust=custitems, custks=custksitems, first=first, firstks=firstks)
+    bk.create_book(oper=oper, file_tab_book=ops.get('file_tab_book'), file_tab_serv=ops.get('file_tab_serv'),
+                   file_tab_bookf=ops.get('file_tab_bookf'), file_tab_akt=ops.get('file_tab_akt'),  delete_period=True)
 
     bar.update_progress(100)
     Progressbar.go_new_line()
 
     # 2) создание текстовых файлов для выгрузки на портал оператора связи
-    path_files, full_path = ut.get_full_path(year=opts.year, month=opts.month, path=path_result, directory=dir_mts, ext='csv')
+    path_files, full_path = ut.get_full_path(year=year, month=month, path=path_result, directory=dir_mts, ext='csv')
     path_cp1251 = "{path_files}/cp1251".format(path_files=path_files)
 
-    print('path_files_mts:', path_files )
+    print('path_files_mts:', path_files)
     ut.makedir(path_files)
     ut.makedir(path_cp1251)
 
     # список файлов на выгрузку: operator_files['MG']['detal'], ...
     operator_files = dict()
-    ut.get_operator_files(year=opts.year, month=opts.month, path=path_files, reports=file_reports,
-                          files=operator_files)
+    ut.get_operator_files(year=year, month=month, path=path_files, reports=file_reports, files=operator_files)
 
     # создание текстовых файлов для оператора МТС
-    tx = OperatorDataRss(opts, oper=oper, reports=file_reports, files=operator_files, cust=cust, custks=custks)
+    tx = OperatorDataRss(ops, oper=oper, reports=file_reports, files=operator_files, cust=cust, custks=custks)
     tx.create_files()
 
     # по регламенту файлы должны быть в кодировке CP1251
     ut.copy_files_new_charset(path1=path_files, path2=path_cp1251, ext='csv', code1='utf8', code2='cp1251')
 
-    log.info('..')
-
-    msg = 'create reports in xls..'
-    log.info(msg)
+    log('..')
+    log('create reports in xls..')
     print('--')
 
-    updated_rows = update_rss_bookf(dsn=cfg.dsn_bill2, period=ini.period)
-    log.info('updated {rows} records in bill.rss_bookf'.format(rows=updated_rows))
+    updated_rows = update_rss_bookf(dsn=cfg.dsn_bill2, year=year,  month=month)
+    log('updated {rows} records in bill.rss_bookf'.format(rows=updated_rows))
 
-    xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_result, directory=dir_book)
+    xls = xlsreports.BillReportXls(dsn=cfg.dsn_bill2, year=int(year), month=int(month), path=path_result,
+                                   directory=dir_book)
     xls.create_file()
 
-    log.info('.')
+    t2 = time.time()
+
+    log("work: {0:0.2f} sec".format(t2 - t1, ))
+    log('.')
 
 
-except pymysql.Error as e:
-    log.warning(e)
-    print(e)
-except RuntimeError as e:
-    log.warning(str(e))
-    print(e)
-except Exception as e:
-    log.warning(str(e))
-    traceback.print_exc()
+if __name__ == '__main__':
+    p = optparse.OptionParser(description="Create reports for operator MTS",
+                              prog="reports.py", version="0.1a", usage="reports.py --year=year --month=month")
+
+    p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
+    p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
+
+    opts, args = p.parse_args()
+
+    if not opts.year or not opts.month:
+        print(p.print_help())
+        exit(1)
+
+    try:
+
+        main(year=opts.year, month=opts.month)
+
+    except Exception as e:
+        log(e.args)
+        traceback.print_exc()

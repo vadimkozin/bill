@@ -58,6 +58,7 @@ class BillMestXls(object):
     """
     def __init__(self, dsn, year, month, path, directory):
         self.dsn = dsn
+        self.base = dsn['db']
         self.year = year
         self.month = month
         self.period = '{year:04d}_{month:02d}'.format(year=int(year), month=int(month))  # 2022_04
@@ -110,7 +111,7 @@ class BillMestXls(object):
         """
         db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
-        sql = cfg.sqls['mest_data'].format(period=self.period)
+        sql = cfg.sqls['mest_data'].format(base=self.base, period=self.period)
         cursor.execute(sql)
 
         items = list()
@@ -244,7 +245,7 @@ class BillMestXls(object):
 
         db = pymysql.Connect(**self.dsn)
         cursor = db.cursor()
-        sql = cfg.sqls['mest_detail'].format(table=self.table, cid=cid)
+        sql = cfg.sqls['mest_detail'].format(base=self.base, table=self.table, cid=cid)
 
         cursor.execute(sql)
 

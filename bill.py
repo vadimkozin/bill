@@ -5,13 +5,11 @@
 python3 bill.py --year=2022 --month=1
 """
 import optparse
-import logging
-from logging import Logger
 import pymysql
 import traceback
 import time
 #
-from cfg import cfg, ini
+from cfg import cfg
 from modules import codedef          # коды СПС
 from modules import customers        # клиенты
 from modules import link             # текущая разбираемая связь
@@ -24,8 +22,11 @@ from modules import calc             # функции для вычислени�
 from modules.func import Func        # разные функции
 from modules.progressbar import Progressbar     # прогресс-бар
 from modules import utils as ut
+from modules import logger
 
-flog = cfg.paths['logging']['bill']   # лог-файл
+
+flog = cfg.paths['logging']['bill']    # лог-файл
+log = logger.Logger(flog).log          # ф-ия логгер
 
 
 def itog_log(info='-', step=0, update=0, tm1=0.0, tm2=0.0, cost=0.0, min_mg=0):
@@ -41,10 +42,10 @@ def itog_log(info='-', step=0, update=0, tm1=0.0, tm2=0.0, cost=0.0, min_mg=0):
     """
 
     if step == 0 and update == 0 and tm1 == 0 and tm2 == 0 and cost == 0 and min_mg == 0:
-        log.info(info)
+        log(info)
     else:
         proc = 0 if step == 0 else float(update)/float(step)*100
-        log.info('{info}: step/add: {step}/{update} {proc:.1f}% time:{time}s cost:{cost:.2f} min_mg:{min_mg}'.
+        log('{info}: step/add: {step}/{update} {proc:.1f}% time:{time}s cost:{cost:.2f} min_mg:{min_mg}'.
                  format(info=info, step=step, update=update, proc=proc, time=int(tm2-tm1),
                         cost=cost, min_mg=min_mg))
 
@@ -105,6 +106,15 @@ class Billing(object):
     """
     # ///////////////////////////////
     def __init__(self, opts):
+        """
+        :param opts: параметры
+        """
+        self.opts = opts
+        self.table = opts.get('table')
+        self.filenoexistnumber = opts.get('filenoexistnumber')
+        # городские номера клиентов
+        # self.numbers = numbers1.Numbers(dsn=cfg.dsn_tel, table=self.table, n811=self.n811)
+
         # клиенты
         self.cust = customers.Cust(dsn=cfg.dsn_cust)
         self.custks = customers.CustKs(dsn=cfg.dsn_cust)
@@ -114,7 +124,7 @@ class Billing(object):
         self.n811 = numbers1.Number811(dsn=cfg.dsn_tar)
 
         # городские номера клиентов
-        self.numbers = numbers1.Numbers(dsn=cfg.dsn_tel, table=opts.table, n811=self.n811)
+        self.numbers = numbers1.Numbers(dsn=cfg.dsn_tel, table=self.table, n811=self.n811)
 
         # коды СПС - связи
         self.cdef = codedef.Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
@@ -128,12 +138,6 @@ class Billing(object):
 
     # ///////////////////////////////
 
-        """
-        :param opts: параметры
-        """
-        self.opts = opts
-        # городские номера клиентов
-        self.numbers = numbers1.Numbers(dsn=cfg.dsn_tel, table=self.opts.table, n811=self.n811)
 
     def bill(self, dsn, info, where=None, save_db=True):
         """
@@ -146,7 +150,7 @@ class Billing(object):
         t1 = time.time()
         db = pymysql.Connect(**dsn)
         cursor = db.cursor()
-        table = self.opts.table
+        table = self.table
 
         # для результатов
         res = result.Result()
@@ -194,7 +198,7 @@ class Billing(object):
             # если за номер некому платить, запомним номер и продолжим
             if q.cid == '0':
                 Func.save_noexist_number(db=dsn['db'], table=table, idx=q.id, fm=q.fm, fmx=q.fmx, to=q.to,
-                                         stat=self.ctype.getsts(q.to, q.tox), filename=self.opts.filenoexistnumber)
+                                         stat=self.ctype.getsts(q.to, q.tox), filename=self.filenoexistnumber)
                 count_noexist_number += 1
                 continue
 
@@ -258,49 +262,33 @@ class Billing(object):
         itog_log('.')
 
 
+def main(year, month):
+    ops = dict()
+    ops.setdefault('year', year)
+    ops.setdefault('month', month)
+    ops.setdefault('filenoexistnumber', 'log/nonum.txt') # сбор номеров необх. для биллинга но их нет в тел_базе
+    ops.setdefault('table', ut.year_month2period(year=year, month=month))
+
+    bill = Billing(ops)
+    bill.bill(dsn=cfg.dsn_bill, info=ops.get('table'), save_db=True, where="id>0")
+
+
 if __name__ == '__main__':
     p = optparse.OptionParser(description="billing",
-                              prog="bill.py", version="0.1a", usage="bill.py --year=year --month=month [--log=namefile]")
+                              prog="bill.py", version="0.1a", usage="bill.py --year=year --month=month")
 
     p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
     p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
-    p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
-    p.add_option("--reset", "-r",
-                 action="store_true", dest="reset", default=False,
-                 help="option only for compatibility with bill.py")
 
-    opt, args = p.parse_args()
+    opts, args = p.parse_args()
 
-    # параметры в командной строке - в приоритете
-    if not (opt.year and opt.month):
-        opt.year = ini.year
-        opt.month = ini.month
-
-    opt.table = ut.year_month2period(year=opt.year, month=opt.month)
-
-    opt.filenoexistnumber = 'log/nonum.txt'   # сбор номеров необх. для биллинга но их нет в тел_базе
-
-    if not opt.table or not opt.log:
-        print(p.print_help)
+    if not opts.year or not opts.month:
+        print(p.print_help())
         exit(1)
 
-    logging.basicConfig(
-        filename=opt.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
-
-    log: Logger = logging.getLogger('app')
-
     try:
-        bill = Billing(opt)
+        main(year=opts.year, month=opts.month)
 
-        bill.bill(dsn=cfg.dsn_bill, info=opt.table, save_db=True, where="id>0")
-
-    except pymysql.Error as e:
-        log.warning(str(e))
-        print(e)
-    except RuntimeError as e:
-        log.warning(str(e))
-        print(e)
     except Exception as e:
-        log.warning(str(e))
-        traceback.print_exc(file=open(opt.log, "at"))
-        traceback.print_exc()
+        log(e.args)
+        traceback.print_exc(file=open(flog, "at"))

@@ -1,4 +1,4 @@
-CREATE TABLE `_TABLE_CREATE_` (
+CREATE TABLE _TABLE_CREATE_ (
   `id` int(4) NOT NULL AUTO_INCREMENT COMMENT 'id record',
   `account` int(4) unsigned NOT NULL DEFAULT '0' COMMENT 'условный номер счёта',
   `period` char(7) NOT NULL DEFAULT '-' COMMENT 'период: напр. 2022_01',

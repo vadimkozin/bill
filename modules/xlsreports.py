@@ -3,7 +3,7 @@
 import os
 import pymysql
 import xlsxwriter
-from cfg import cfg, ini
+from cfg import cfg
 from modules.progressbar import Progressbar
 from modules import utils as ut
 
@@ -607,7 +607,9 @@ class BillReportXls(object):
 
 if __name__ == '__main__':
 
-    xls = BillReportXls(dsn=cfg.dsn_bill2, year=ini.year, month=ini.month, path=path_results, directory=dir_result)
+    year = 2022
+    month = 6
+    xls = BillReportXls(dsn=cfg.dsn_bill2, year=year, month=month, path=path_results, directory=dir_result)
     xls.create_file()
 
     print('.')

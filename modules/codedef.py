@@ -71,8 +71,6 @@ def current_ymdhms():
 
 
 root = path.abspath(path.join(__file__, "../.."))    # корень
-# root = os.path.realpath(os.path.dirname(sys.argv[0]))                   # корень
-print(root)
 data = "{root}/data".format(root=root)
 flog = "{root}/log/{file}".format(root=root, file='codedef.log')        # лог-файл
 fout = "{data}/{file}".format(data=data, file='def9x-' + current_ymd() + '.txt')  # def9x-2013-11-22.txt

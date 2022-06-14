@@ -1,6 +1,9 @@
 cfg/cfg.py
-build.sh
+_build.sh
+_test.sh
+_zip.sh
 run.sh
+bill.zip
 /venv
 /mix
 /doc

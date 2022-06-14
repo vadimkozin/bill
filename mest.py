@@ -21,28 +21,17 @@ import optparse
 import traceback
 import time
 import pymysql
-import logging
 from datetime import datetime
-from cfg import cfg, ini
+from cfg import cfg
 from modules import utils as ut
 from modules.xlsmest import BillMestXls
+from modules import logger
 
 path_result = cfg.paths['result']       # корень для результатов
-dir_result = cfg.paths['mest']['dir']   # под-директория для файлов с местной связью (очень мало)
+dir_result = cfg.paths['mest']['dir']   # под-директория для файлов с местной связью
 flog = cfg.paths['logging']['mest']     # лог-файл
-shema = "{root}/sql/table_mest_book.sql".format(root=cfg.root) # sql-схема твблицы местной связи (mest_book)
-
-
-def xlog(msg, out_console=True):
-    """
-    Пишет в лог и на консоль если out_console=True
-    :param msg: сообщение для логирования
-    :param out_console: True|False флажок
-    :return:
-    """
-    log.info(msg)
-    if out_console:
-        print(msg)
+log = logger.Logger(flog).log           # ф-ия логгер
+tab_template = "{root}/sql/table_mest_book.sql".format(root=cfg.root)   # sql-схема таблицы местной связи (mest_book)
 
 
 def execute(cursor, sql, save_db=True):
@@ -82,33 +71,32 @@ class BillingMest(object):
     Телефонный биллинг местных связей
     """
 
-    def __init__(self, opts, dsn_bill, dsn_tar, dsn_cust):
+    def __init__(self, ops, dsn_bill, dsn_tar, dsn_cust, tab_template):
         """
         Биллинг местной связи
+        :param ops: параметры
         :param dsn_bill: параметры подключения к базе биллинга
         :param dsn_tar: параметры подключения к базе тарифов
         :param dsn_cust: параметры подключения к базе клиентов
-        # :param info: текст для логирования
-        :param opts: параметры
+        :param tab_template: шаблон таблицы (mest_book) в файле
         """
-        self.opts = opts
+        self.ops = ops
         self.dsn_bill = dsn_bill
         self.dsn_tar = dsn_tar
         self.dsn_cust = dsn_cust
+        self.tab_template = tab_template
         self.cid2tar = dict()   # отображение кода клиента на на тариф местной связи: cid->cost1min
 
     def _read_mest_tar(self):
         """
         Чтение тарифов (стоимость 1 минуты) для местной связи
         (создание отношения cid2tar: cid->cost1min)
-        :param dsn: параметры подключения к базе тарифов
-        :param table: таблица с тарифными планами клиентов (tarif.tariff_tel)
         :return: cid2tar - мапа cid->cust1min для клиентов, у которых нужно считать местную связь
         """
         db = pymysql.Connect(**self.dsn_tar)
 
         cursor = db.cursor()
-        table = self.opts.table_tariff
+        table = self.ops.get('table_tariff')
 
         cid2tar = {}
 
@@ -125,10 +113,15 @@ class BillingMest(object):
 
     def bill(self):
         t1 = time.time()
-        period = self.opts.period
-        table_book = self.opts.table_book
+        base = self.dsn_bill["db"]
+        period = self.ops.get('period')
+        table_book = self.ops.get('table_book')
 
-        xlog('period: {period}'.format(period=period))
+        log('period: {period}'.format(period=period))
+
+        created_table = ut.create_table_if_no_exist(dsn=self.dsn_bill, table=table_book, tab_template=self.tab_template)
+        if created_table:
+            log('created table: {table}'.format(table=created_table))
 
         db = pymysql.Connect(**self.dsn_bill)
         cursor = db.cursor()
@@ -142,10 +135,10 @@ class BillingMest(object):
         # сумма к оплате для клиентов с оплачиваемой местной связью*
         for cid in cid2tar:
             cost1min = cid2tar[cid]
-            table = self.opts.table_bill
+            table = self.ops.get('table_bill')
             sql = "SELECT cid, sum(min) sum_min, '{cost1min}' AS `cost1min`, sum(min)*{cost1min} AS `summa`" \
-                  " FROM bill.{table} d WHERE cid={cid} AND stat='G' GROUP BY cid".\
-                format(cost1min=cost1min, table=table, cid=cid)
+                  " FROM {base}.{table} d WHERE cid={cid} AND stat='G' GROUP BY cid".\
+                format(cost1min=cost1min, base=base, table=table, cid=cid)
 
             cursor.execute(sql)
             for line in cursor:
@@ -155,7 +148,8 @@ class BillingMest(object):
         # удаляем записи из книги местной связи за период
         sql = "DELETE FROM {table} WHERE period='{period}'".format(table=table_book, period=period)
         rows = execute(cursor, sql)
-        xlog('deleted {rows} rows from {table}, period={period}'.format(rows=rows, table=table_book, period=period))
+        log('deleted {rows} rows from {table}, period={period}'.
+            format(rows=rows, table=table_book, period=period), is_print=False)
 
         # последний account
         account = get_last_account(cursor, table=table_book)
@@ -174,15 +168,37 @@ class BillingMest(object):
                        dt=date_now, min=it['min'], cost1min=it['cost1min'], sum=it['summa'], prim='+')
             count += execute(cursor_insert, sql)
 
-        xlog('added {count} rows into {table}, period={period}'.
-             format(count=count, table=table_book, period=period))
+        log('added {count} rows into {table}, period={period}'.
+            format(count=count, table=table_book, period=period), is_print=False)
 
         cursor.close()
         cursor_insert.close()
         db.close()
 
         t2 = time.time()
-        xlog("work: {0:0.2f} sec".format(t2 - t1))
+        log("work: {0:0.2f} sec".format(t2 - t1))
+
+
+def main(year, month):
+    ops = dict()
+    ops.setdefault('year', year)
+    ops.setdefault('month', month)
+    ops.setdefault('table_bill', ut.year_month2period(year=year, month=month))  # Y2022M06
+    ops.setdefault('period', '{year:04d}_{month:02d}'.format(year=int(year), month=int(month)))  # 2022_06
+    ops.setdefault('table_tariff', 'tarif.tariff_tel')
+    ops.setdefault('table_book', 'bill_tmp.mest_book')
+    ops.setdefault('table_customers', 'customers.Cust')
+
+    # Биллинг местной связи -> результат в bill.mest_book
+    mest = BillingMest(ops=ops, dsn_bill=cfg.dsn_bill2, dsn_tar=cfg.dsn_tar, dsn_cust=cfg.dsn_cust,
+                       tab_template=tab_template)
+    mest.bill()
+
+    # Результат из таблицы bill.mest_book преобразуем в xls-файл
+    xls = BillMestXls(dsn=cfg.dsn_bill2, year=year, month=month, path=path_result, directory=dir_result)
+    xls.create_file()
+
+    log('.')
 
 
 if __name__ == '__main__':
@@ -191,51 +207,16 @@ if __name__ == '__main__':
 
     p.add_option('--year', '-y', action='store', dest='year', help='year, example 2021')
     p.add_option('--month', '-m', action='store', dest='month', help='month in range 1-12')
-    p.add_option('--log', '-l', action='store', dest='log', default=flog, help='logfile')
-    p.add_option("--reset", "-r",
-                 action="store_true", dest="reset", default=False,
-                 help="option only for compatibility with bill.py")
 
-    opt, args = p.parse_args()
+    opts, args = p.parse_args()
 
-    # параметры в командной строке - в приоритете
-    if not (opt.year and opt.month):
-        opt.year = ini.year
-        opt.month = ini.month
-
-    if not opt.year or not opt.month or not opt.log:
+    if not opts.year or not opts.month:
         print(p.print_help())
         exit(1)
 
-    opt.table_bill = 'Y{year:04d}M{month:02d}'.format(year=int(opt.year), month=int(opt.month))
-    opt.period = '{year:04d}_{month:02d}'.format(year=int(opt.year), month=int(opt.month))
-
-    opt.table_tariff = 'tarif.tariff_tel'
-    opt.table_book = 'bill.mest_book'
-    opt.table_customers = 'customers.Cust'
-
-    logging.basicConfig(
-        filename=opt.log, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", format='%(asctime)s %(message)s', )
-    log = logging.getLogger('app')
-
     try:
-        # Биллинг местной связи -> результат в bill.mest_book
-        mest = BillingMest(opt, dsn_bill=cfg.dsn_bill2, dsn_tar=cfg.dsn_tar, dsn_cust=cfg.dsn_cust)
-        mest.bill()
+        main(year=opts.year, month=opts.month)
 
-        # Результат из таблицы bill.mest_book преобразуем в xls-файл
-        xls = BillMestXls(dsn=cfg.dsn_bill2, year=opt.year, month=opt.month, path=path_result, directory=dir_result)
-        xls.create_file()
-
-        xlog('.')
-
-    except pymysql.Error as e:
-        log.exception(str(e))
-        print(e)
-    except RuntimeError as e:
-        log.exception(str(e))
-        print(e)
     except Exception as e:
-        log.exception(str(e))
-        traceback.print_exc(file=open(opt.log, "at"))
+        log(e.args)
         traceback.print_exc()
