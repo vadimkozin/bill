@@ -542,7 +542,7 @@ class BillingLocal(object):
         :field: название поля у которого вычисляем последний номер
         :return: последний account
         """
-        sql = "SELECT max(`{field}`) FROM {table}".format(field=field, table=self.ots.get('table_book'))
+        sql = "SELECT max(`{field}`) FROM {table}".format(field=field, table=self.ops.get('table_book'))
         cursor.execute(sql)
         max_number = cursor.fetchone()[0]
         if not max_number:
@@ -711,9 +711,9 @@ def main(year, month):
     ops.setdefault('period', '{year:04d}_{month:02d}'.format(year=int(year), month=int(month)))  # 2022_06
     ops.setdefault('table_numbers_tar', 'tarif.loc_numbers_tar')
     ops.setdefault('table_stream_tar', 'tarif.loc_stream_tar')
-    ops.setdefault('table_numbers', 'bill_tmp.loc_numbers')
-    ops.setdefault('table_stream', 'bill_tmp.loc_stream')
-    ops.setdefault('table_book', 'bill_tmp.loc_book')
+    ops.setdefault('table_numbers', 'bill.loc_numbers')
+    ops.setdefault('table_stream', 'bill.loc_stream')
+    ops.setdefault('table_book', 'bill.loc_book')
     ops.setdefault('table_customers', 'customers.Cust')
 
     # create local tables if no exists

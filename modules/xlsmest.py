@@ -315,7 +315,6 @@ class BillMestXls(object):
 
         # клиенты
         customers_id = [str(it.cid) for it in book_list]  # ['58','1251',..]
-
         customers = self._get_customers(customers_id)
         cid2name = dict()
         for it in customers:
@@ -348,5 +347,5 @@ class BillMestXls(object):
 
 
 if __name__ == '__main__':
-    xls = BillMestXls(dsn=cfg.dsn_bill2, year=2022, month=4, path=path_result, directory=dir_result)
+    xls = BillMestXls(dsn=cfg.dsn_bill2, year=2022, month=6, path=path_result, directory=dir_result)
     xls.create_file()

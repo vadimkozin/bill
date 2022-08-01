@@ -11,7 +11,7 @@ import optparse
 import traceback
 import pymysql
 import logging
-from cfg import cfg, ini
+from cfg import cfg
 
 flog = cfg.paths['logging']['info']     # лог-файл
 
@@ -81,12 +81,7 @@ if __name__ == '__main__':
 
     opt, args = p.parse_args()
 
-    # параметры в командной строке - в приоритете
-    if not (opt.year and opt.month):
-        opt.year = ini.year
-        opt.month = ini.month
-
-    if not opt.year or not opt.month or not opt.log:
+    if not opt.year or not opt.month:
         print(p.print_help())
         exit(1)
 

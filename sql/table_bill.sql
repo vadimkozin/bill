@@ -64,5 +64,6 @@ CREATE TABLE `_TABLE_CREATE_` (
   `_sum` double(8,3) NOT NULL DEFAULT '0.000' COMMENT '# клиент_сумма, для физлиц НДС включён',
   `_sum2` double(8,3) NOT NULL DEFAULT '0.000' COMMENT '# клиент_сумма без НДС',
   `_suma` double(8,3) NOT NULL DEFAULT '0.000' COMMENT '# агент_сумма',
+  `_stat2` char(4) NOT NULL DEFAULT '-'  COMMENT '# тип звонка для росстат: mg(M,S), mn(W), vz(Z), gd(G), 112',
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;

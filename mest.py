@@ -186,7 +186,7 @@ def main(year, month):
     ops.setdefault('table_bill', ut.year_month2period(year=year, month=month))  # Y2022M06
     ops.setdefault('period', '{year:04d}_{month:02d}'.format(year=int(year), month=int(month)))  # 2022_06
     ops.setdefault('table_tariff', 'tarif.tariff_tel')
-    ops.setdefault('table_book', 'bill_tmp.mest_book')
+    ops.setdefault('table_book', 'bill.mest_book')
     ops.setdefault('table_customers', 'customers.Cust')
 
     # Биллинг местной связи -> результат в bill.mest_book

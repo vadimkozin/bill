@@ -54,7 +54,6 @@ from modules.func import Func
 
 """
 
-# https://rossvyaz.gov.ru/deyatelnost/resurs-numeracii/vypiska-iz-reestra-sistemy-i-plana-numeracii
 # url = 'https://rossvyaz.gov.ru/data/DEF-9xx.csv'
 url = 'http://opendata.digital.gov.ru/downloads/DEF-9xx.csv'
 # "curl {url} | iconv -f cp1251 | dos2unix > def9x.txt"

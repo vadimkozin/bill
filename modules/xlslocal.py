@@ -492,9 +492,9 @@ if __name__ == '__main__':
     ops.setdefault('period', '{year:04d}_{month:02d}'.format(year=int(year), month=int(month)))  # 2022_06
     ops.setdefault('table_numbers_tar', 'tarif.loc_numbers_tar')
     ops.setdefault('table_stream_tar', 'tarif.loc_stream_tar')
-    ops.setdefault('table_numbers', 'bill_tmp.loc_numbers')
-    ops.setdefault('table_stream', 'bill_tmp.loc_stream')
-    ops.setdefault('table_book', 'bill_tmp.loc_book')
+    ops.setdefault('table_numbers', 'bill.loc_numbers')
+    ops.setdefault('table_stream', 'bill.loc_stream')
+    ops.setdefault('table_book', 'bill.loc_book')
     ops.setdefault('table_customers', 'customers.Cust')
 
     xls = BillLocalXls(ops=ops, dsn=cfg.dsn_bill2, year=year, month=month, path=path_result, directory=dir_result)

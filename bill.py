@@ -23,6 +23,7 @@ from modules.func import Func        # разные функции
 from modules.progressbar import Progressbar     # прогресс-бар
 from modules import utils as ut
 from modules import logger
+from modules import mobile
 
 
 flog = cfg.paths['logging']['bill']    # лог-файл
@@ -129,6 +130,9 @@ class Billing(object):
         # коды СПС - связи
         self.cdef = codedef.Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
 
+        # отдельные направления сотовой для Морспасслужбы (1308)
+        self.mss = mobile.Morspas(dsn=cfg.dsn_tar, tab_code='defCode', tab_tar='tar1308', rossia_mob_nid=847)
+
         # тип звонка по номеру
         self.ctype = calltype.Calltype(cdef=self.cdef)
 
@@ -137,7 +141,6 @@ class Billing(object):
                             tabtarmts='mtsTar', stat=self.ctype, cdef=self.cdef, custdefault=1171)
 
     # ///////////////////////////////
-
 
     def bill(self, dsn, info, where=None, save_db=True):
         """
@@ -215,6 +218,14 @@ class Billing(object):
             q.sts, q.code, q.zona, q.tar, q.tara, q.nid, q.desc, q.name = \
                 self.mts.get_sts_code_zona_tar_tara_nid_desc_name(tid=q.tid_t, org=q.org, to=q.to, tox=q.tox)
 
+            # 2022-06-04, для Морспасслужбы(1308) для отдельных направлений сотовой
+            if q.cid == '1308' and q.sts in ('mgs', 'vz'):
+                info = self.mss.getinfo(q.to)
+                if info:
+                    q.nid = info['nid']
+                    q.tar = info['tar']
+                    q.desc = info['name']
+
             q.stat = self.ctype.get_mwszg(q.sts)        # M, W, S, Z, G, V
             q.st = cfg.stat2st.get(q.stat, '-')         # MG VZ GD
 
@@ -229,7 +240,7 @@ class Billing(object):
                 q.pid = self.custks.get_pid_by_number(q.fm)
 
             # бизнес-правила:
-            if q.sec <= int(cfg.calc['minsec']):
+            if q.sec < int(cfg.calc['minsec']):
                 q.sum = q.sum2 = q.suma = q.sec = q.min = 0
 
             # общая сумма без НДС
