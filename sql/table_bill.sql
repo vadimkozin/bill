@@ -31,7 +31,7 @@ CREATE TABLE `_TABLE_CREATE_` (
   `eq` char(12) NOT NULL DEFAULT '-' COMMENT 'оборудование',
   `eqid` int(6) NOT NULL DEFAULT '0' COMMENT 'код записи в таблице  откуда скопирована запись (->eq!id)',
   `codeKOM` char(12) NOT NULL DEFAULT '-' COMMENT 'код.Комстар',
-  `naprKOM` char(40) NOT NULL DEFAULT '-' COMMENT 'напр.Комстар',
+  `naprKOM` varchar(90) NOT NULL DEFAULT '-' COMMENT 'напр.Комстар',
   `regKOM` char(16) NOT NULL DEFAULT '-' COMMENT 'регион.Комстар',
   `sumKOM` double(10,5) DEFAULT '0.00000' COMMENT 'стоим.Комстар.ДляАгента',
   `sumKOMMAX` double(10,5) DEFAULT '0.00000' COMMENT 'стоим.КомстарМакс.ДляКлиенто',
