@@ -2012,6 +2012,9 @@ def main(year, month):
     # 2022-02-01 added customers from TCU
     smg2.add2(where="(str='tcukom' and dtr='mts')", info='smg2.TCU_MTS', eq='smg2_TCU', op='q', p='q', f3='+')
 
+    # 2023-08-07 add huhtamaki (str='huhtamaki' with 19-07-2023)
+    smg2.add2(where="(str='huhtamaki' and dtr='mts')", info='smg2.TCU_MTS_huhtamaki', eq='smg2_TCU2', op='q', p='q', f3='+')
+
     # 2023-05-01 added customers from Westcall
     # SELECT GROUP_CONCAT(CONCAT("'", `xnumber`, "'") ORDER BY xnumber) FROM telefon.tel WHERE isWestcall='+';
     smg2.add2(where="(dtr='mts' AND fm IN ('74956401792','74956401793','74956405146','74956405147','74956405157','74956405158','74956406805','74956409108','74956409775','74956409939','74956662141','74956662146','74956662147','74956662283','74956662285','74956662286','74959330130','74959330132','74959330133','74959330134','74959330135','74959330136','74959330138','74959330139','74959335921','74959335922','74959372317','74959372360','74959372368','74959372385','74959372388','74959372393','74995004216','74995004217') )",
@@ -2021,6 +2024,7 @@ def main(year, month):
     # не нужно - уже добавлено выше с info='smg2.CTS_MTS'
     # smg2.add2(where="(dtr='mts' AND fm rlike '^(7|8)495236021(0|1|2)')",
     #           info='smg2.CTS2_MTS', eq='smg2_CTS2', op='q', p='q', f3='+')
+
 
     t2 = time.time()
     print("work: {0:0.2f} sec".format(t2 - t1, ))
