@@ -2013,7 +2013,8 @@ def main(year, month):
     smg2.add2(where="(str='tcukom' and dtr='mts')", info='smg2.TCU_MTS', eq='smg2_TCU', op='q', p='q', f3='+')
 
     # 2023-08-07 add huhtamaki (str='huhtamaki' with 19-07-2023)
-    smg2.add2(where="(str='huhtamaki' and dtr='mts')", info='smg2.TCU_MTS_huhtamaki', eq='smg2_TCU2', op='q', p='q', f3='+')
+    # 2024-08-01 add 74957833733 (too huhtamaki with 07-08-2023)
+    smg2.add2(where="(str IN ('huhtamaki','74957833733') and dtr='mts')", info='smg2.TCU_MTS_huhtamaki', eq='smg2_TCU2', op='q', p='q', f3='+')
 
     # 2023-05-01 added customers from Westcall
     # SELECT GROUP_CONCAT(CONCAT("'", `xnumber`, "'") ORDER BY xnumber) FROM telefon.tel WHERE isWestcall='+';
