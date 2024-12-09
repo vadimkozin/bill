@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # from __future__ import unicode_literals
-from urllib.request import urlopen
+# from urllib.request import urlopen
+from urllib import request
 import ssl
 import time
 import datetime
@@ -145,7 +146,7 @@ class Codedef(object):
         if add_alias_region:
             self.add_alias_to_region(info='add alias to region in tarif.defRegion')
 
-    def read_url(self, info='-'):
+    def read_url___(self, info='-'):
         """
         Чтение кодов СПС с сайта rossvyaz.ru
         read cell codes from site rossvyaz.ru
@@ -156,7 +157,46 @@ class Codedef(object):
         # u.close()
 
         context = ssl._create_unverified_context()
-        u = urlopen(self.url, context=context)
+        u = request.urlopen(self.url, context=context)
+        data = u.read()
+        u.close()
+
+        f = open(self.fout, "wt", encoding='utf8')
+        # f.write(data.decode('cp1251').replace('\r\n', '\n').replace('\t', '').replace('\r', ''))
+        f.write(data.decode('utf8'))
+
+        f.close()
+
+        log.info('{info}: bytes:{bytes} time:{time:.3f}s'.format(info=info, bytes=len(data), time=time.time()-t))
+
+    def read_url(self, info='-'):
+        """
+        Чтение кодов СПС с сайта opendata.digital.gov.ru
+        read cell codes from site opendata.digital.gov.ru
+        readme: https://www.zenrows.com/blog/urllib-headers#add-headers
+        """
+        t = time.time()
+        missing_headers = {}
+        missing_headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Ch-Ua": "\"Google Chrome\";v=\"123\", \"Not:A-Brand\";v=\"8\", \"Chromium\";v=\"123\"",
+            "Referer": "https://www.google.com/",
+            "Sec-Ch-Ua-Platform": "\"Windows\"",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "cross-site",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        }
+
+        request_params = request.Request(
+            url=self.url,
+            headers=missing_headers
+        )
+
+        context = ssl._create_unverified_context()
+
+        u = request.urlopen(request_params, context=context)
         data = u.read()
         u.close()
 
