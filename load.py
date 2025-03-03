@@ -248,7 +248,7 @@ class Stat(object):
 
     def getdnw(self, dt):
         """ return D | N | W for date: dt """
-        return cal.dnw(dt)
+        return self.cal.dnw(dt)
 # end class Stat
 
 
@@ -1438,7 +1438,7 @@ class ReplaceNumber(object):
         :return: count replacing numbers
         """
         t1 = time.time()
-        n642 = Number642Cust58(numb)
+        n642 = Number642Cust58(self.numb)
         where = "fm in ({num}) and eq<>'mp12'".format(num=n642.numstr)
         sql = "select id, dt, fm, `to`, sec FROM bill.{table} where {where}".format(table=self.table, where=where)
         self.cur.execute(sql)
@@ -1464,7 +1464,7 @@ class ReplaceNumber(object):
         :return: count replacing numbers
         """
         t1 = time.time()
-        n642 = Number642Cust58(numb)
+        n642 = Number642Cust58(self.numb)
         wh = "fm in ({num}) and eq<>'mp12'".format(num=n642.numstr)
         if where:
             wh += " and ({wh}) ".format(wh=where)
@@ -2026,6 +2026,11 @@ def main(year, month):
     # smg2.add2(where="(dtr='mts' AND fm rlike '^(7|8)495236021(0|1|2)')",
     #           info='smg2.CTS2_MTS', eq='smg2_CTS2', op='q', p='q', f3='+')
 
+    # 2025-03-01 added numbers: 74957833731(СкандиПакк), 74956401793(Хайлон)
+    smg2.add2(where="(fm LIKE '%4957833731' and dtr='mts')", info='smg2.74957833731', eq='smg2_74957833731',
+              op='q', p='q', f3='+')
+    smg2.add2(where="(fm LIKE '%4956401793' and dtr='mts')", info='smg2.74956401793', eq='smg2_74956401793',
+              op='q', p='q', f3='+')
 
     t2 = time.time()
     print("work: {0:0.2f} sec".format(t2 - t1, ))
