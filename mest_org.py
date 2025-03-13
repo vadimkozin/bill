@@ -4,27 +4,13 @@
 """
 Биллинг местной связи ,это не повремёнка, а конкретно местная связь - оплата за каждую минуту
 Есть клиенты у которых считаем такую связь.
-
-2025-03-12
-Таблицы участвующие в биллинге местной связи:
-tarif.tariff_mest (id, tid, tar, prim), tid - код тарифа местной связи, если tid=0 - то бесплатно
-customers.Cust,  поле tid_m - код тарифа местной связи (tid_m --> tarif.tariff_mest.tid)
-bill.YyearMmonth (например Y2025M02) - уже был расчёт МГ/МН/ВЗ (bill.py)
-bill.mest_book - книга по местной связи - здесь будет результат
- {account, period, cid, uf, dt, min, cost1min, sum, prim }
-
-алгоритм:
-1. выбираем клиентов (cid-->tid_m где tid_m > 0), которым нужно просчитать местную связь
-  (cid, tid) : SELECT CustID cid, tid_m tid FROM customers.Cust WHERE tid_m > 0 ORDER BY CustID;
-2. получаем отношение tid-->tar для местной связи
-  (tid, tar) : SELECT tid, tar FROM tarif.tariff_mest;
-3. из cid-->tid и tid-->tar получает cid-->tar для местной связи
-4. биллингуем местную связь клиентов, используя cid-->tar
-  (sum_min) : SELECT sum(min) sum_min FROM bill.Y2025M02 WHERE cid={cid} AND stat='G';
-5. записываем результат в bill.mest_book
-
+См. таблицу tarif.tariff_tel.city > 0 , например, city=0.43 - 43 копейки за куждую минуту местной связи
 
 run: mest.py --year=2022 --month=3    // расчёт местной связи за март-2022
+
+таблицы как основа:
+bill.mest_book - книга по местной связи
+{account, period, cid, uf, dt, min, cost1min, sum, prim }
 
 На примере 2022_03:
 1) Результат за месяц кладём в bill.mest_book (period=2022_03)
@@ -99,74 +85,30 @@ class BillingMest(object):
         self.dsn_tar = dsn_tar
         self.dsn_cust = dsn_cust
         self.tab_template = tab_template
+        self.cid2tar = dict()   # отображение кода клиента на тариф местной связи: cid->cost1min
 
-    def _read_mest_customers2tid(self):
+    def _read_mest_tar(self):
         """
-        Возвращает клиентов для местной связи c кодами тарифа местной связи
-        :return: словарь cid2tid : cid->tid для клиентов, у которых нужно считать местную связь
-        """
-        db = pymysql.Connect(**self.dsn_cust)
-
-        cursor = db.cursor()
-        table = self.ops.get('table_customers')
-
-        cid2tid = {}
-
-        # клиенты с оплачиваемой местной связью --> код тарифа местной связи
-        sql = 'SELECT CustID cid, tid_m tid FROM {table} WHERE tid_m > 0 ORDER BY CustID'.format(table=table)
-
-        cursor.execute(sql)
-
-        for line in cursor:
-            cid, tid = line
-            cid2tid[cid] = tid
-        cursor.close()
-        db.close()
-        return cid2tid
-
-    def _read_mest_tid2tar(self):
-        """
-        Возвращает отношение кодов местной связи и тарифов
-        :return: словарь tid2tar : tid->tar
+        Чтение тарифов (стоимость 1 минуты) для местной связи
+        (создание отношения cid2tar: cid->cost1min)
+        :return: cid2tar - мапа cid->cust1min для клиентов, у которых нужно считать местную связь
         """
         db = pymysql.Connect(**self.dsn_tar)
 
         cursor = db.cursor()
         table = self.ops.get('table_tariff')
 
-        tid2tar = {}
-
-        # соответствие кода тарифа и тарифа местной связи
-        sql = 'SELECT tid, tar FROM {table}'.format(table=table)
-
-        cursor.execute(sql)
-
-        for line in cursor:
-            tid, tar = line
-            tid2tar[tid] = tar
-        cursor.close()
-        db.close()
-        return tid2tar
-
-    def get_customers_tariff_mest(self):
-        """
-        Возвращает соответствие кода клиента его тарифу за 1 минуту местной связи
-        :return: словарь cid-->cost1min
-        """
-        # клиенты с кодами тарифов местной связи
-        cid2tid = self._read_mest_customers2tid()
-
-        # тарифы местной связи
-        tid2tar = self._read_mest_tid2tar()
-
-        # клиенты с тарифами местной связи
         cid2tar = {}
 
-        for cid in cid2tid:
-            tid = cid2tid[cid]
-            tar = tid2tar[tid]
-            cid2tar[cid] = tar
+        # клиенты с оплачиваемой местной связью
+        sql = 'SELECT `cid`, `city` cost1min FROM {table} WHERE `city`>0 ORDER BY `cid`'.format(table=table)
 
+        cursor.execute(sql)
+        for line in cursor:
+            cid, cost1min = line
+            cid2tar[cid] = cost1min
+        cursor.close()
+        db.close()
         return cid2tar
 
     def bill(self):
@@ -186,7 +128,7 @@ class BillingMest(object):
         cursor_insert = db.cursor()
 
         # клиенты с оплачиваемой местной связью
-        cid2tar = self.get_customers_tariff_mest()
+        cid2tar = self._read_mest_tar()
 
         cid2sum = {}  # cid => {cid, sum_min, cost1min, summa}
 
@@ -195,7 +137,7 @@ class BillingMest(object):
             cost1min = cid2tar[cid]
             table = self.ops.get('table_bill')
             sql = "SELECT cid, sum(min) sum_min, '{cost1min}' AS `cost1min`, sum(min)*{cost1min} AS `summa`" \
-                  " FROM {base}.{table} d WHERE cid={cid} AND stat='G' GROUP BY cid". \
+                  " FROM {base}.{table} d WHERE cid={cid} AND stat='G' GROUP BY cid".\
                 format(cost1min=cost1min, base=base, table=table, cid=cid)
 
             cursor.execute(sql)
@@ -221,7 +163,7 @@ class BillingMest(object):
 
             sql = "INSERT INTO {table} (account, period, cid, uf, dt, min, cost1min, sum, prim) " \
                   "VALUES ('{account}', '{period}', '{cid}', '{uf}', '{dt}', '{min}', " \
-                  "'{cost1min}', '{sum}', '{prim}')". \
+                  "'{cost1min}', '{sum}', '{prim}')".\
                 format(table=table_book, account=account, period=period, cid=cid, uf='u',
                        dt=date_now, min=it['min'], cost1min=it['cost1min'], sum=it['summa'], prim='+')
             count += execute(cursor_insert, sql)
@@ -243,7 +185,7 @@ def main(year, month):
     ops.setdefault('month', month)
     ops.setdefault('table_bill', ut.year_month2period(year=year, month=month))  # Y2022M06
     ops.setdefault('period', '{year:04d}_{month:02d}'.format(year=int(year), month=int(month)))  # 2022_06
-    ops.setdefault('table_tariff', 'tarif.tariff_mest')
+    ops.setdefault('table_tariff', 'tarif.tariff_tel')
     ops.setdefault('table_book', 'bill.mest_book')
     ops.setdefault('table_customers', 'customers.Cust')
 
