@@ -2032,6 +2032,12 @@ def main(year, month):
     smg2.add2(where="(fm LIKE '%4956401793' and dtr='mts')", info='smg2.74956401793', eq='smg2_74956401793',
               op='q', p='q', f3='+')
 
+    # 2025-04-01 added numbers: 74992717711(Натекс) и 74992717719(Натекс)
+    smg2.add2(where="(fm LIKE '%4992717711' and dtr='mts')", info='smg2.74992717711', eq='smg2_74992717711',
+              op='q', p='q', f3='+')
+    smg2.add2(where="(fm LIKE '%4992717719' and dtr='mts')", info='smg2.74992717719', eq='smg2_74992717719',
+              op='q', p='q', f3='+')
+
     t2 = time.time()
     print("work: {0:0.2f} sec".format(t2 - t1, ))
     itog_log(info='end', step=0, update=0, t1=t1, t2=time.time())
