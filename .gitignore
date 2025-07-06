@@ -277,7 +277,7 @@ dmypy.json
 # End of https://www.toptal.com/developers/gitignore/api/pycharm,macos,python
 ######
 cfg/cfg.py
-tmp/
+more/
 log/
 a2/
 bill.zip

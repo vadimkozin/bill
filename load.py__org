@@ -1975,7 +1975,7 @@ def reset_period(dsn, table):
     return True
 
 
-def main__old(year, month):
+def main(year, month):
     table = 'Y{year:04d}M{month:02d}'.format(year=int(year), month=int(month))  # Y2022M01
     t1 = time.time()
 
@@ -2037,41 +2037,6 @@ def main__old(year, month):
               op='q', p='q', f3='+')
     smg2.add2(where="(fm LIKE '%4992717719' and dtr='mts')", info='smg2.74992717719', eq='smg2_74992717719',
               op='q', p='q', f3='+')
-
-    t2 = time.time()
-    print("work: {0:0.2f} sec".format(t2 - t1, ))
-    itog_log(info='end', step=0, update=0, t1=t1, t2=time.time())
-
-    log('.')
-
-
-def main(year, month):
-    table = 'Y{year:04d}M{month:02d}'.format(year=int(year), month=int(month))  # Y2022M01
-    t1 = time.time()
-
-    n811 = Number811(cfg.dsn_tar)
-    numb = Numbers(cfg.dsn_tel, table, n811)
-    # n626 = Number626(cfg.dsn_tel, table)
-    # n710 = Number710(cfg.dsn_tel, table)
-    cal = Calendar(cfg.dsn_cal, table)
-    cdef = codedef.Codedef(dsn=cfg.dsn_tar, tabcode='defCode')
-    stat = Stat(cal=cal, cdef=cdef)
-
-    # reset smg2.table and drop bill.table before load
-    if not ut.period_is_billing(year, month):
-        reset_period(dsn=cfg.dsn_bill, table=table)
-    else:
-        msg = 'It is not possible to make a reset for a period other than the calculated one.'
-        log(msg)
-        exit(1)
-
-    bill = Billing(cfg.dsn_bill, table=table, tab_sample='./sql/table_bill.sql')
-
-    # oper:(m=MTS b=BEELINE f=MEGAFON g=FGUP-RSI c=CITYLAN x=MGTS r=RSS)
-    smg2 = Smg642(dsn=cfg.dsn_smg2, bill=bill, table=table, numb=numb, stat=stat)
-
-    # 2025-06-30 load all where dtr=mts
-    smg2.add2(where="(dtr='mts' AND sec>0)", info='smg2.mts', eq='smg2.mts', op='q', p='q', f3='+')
 
     t2 = time.time()
     print("work: {0:0.2f} sec".format(t2 - t1, ))
