@@ -108,15 +108,25 @@ class Tarmts(object):
             self.tarspsmg2[self.join_zonatid(zona, tid)] = tar
 
         # тарифные планы (2022-02-23)
-        sql = "select `tid`, `cid`, `city`, `tab_mn` from tarif.tariff_tel order by `id`"
-        cur.execute(sql)
-        for line in cur:
-            tid, cid, city, tab_mn = line
-            tar_mn = None
-            if tab_mn != '-':
-                tar_mn = TarHuhtamaki(dsn=self.dsn, table=tab_mn)
-                # tar_mn.print_tar()
-            self.tarplans[str(tid)] = dict(tid=tid, cid=cid, city=city, tar_mn=tar_mn)
+        # 2025-08-01 - больше не нужны для расчёта
+        # sql = "select `tid`, `cid`, `city`, `tab_mn` from tarif.tariff_tel order by `id`"
+        # 2025-08-01 tarif.tariff_tel - больше не нужно считывать, так как в таблице `tarif.tariff_tel` остались поля: tid, name, prim
+        # customers.Cust!tid_t - код тарифного плана (1..5)
+        # smg2.Y2025M07.dtr='11369' - направление МТС - забираем эти записи и копируем в bill.Y2025M07
+        # bill.Y2025M07.fm - поле from (исходящий номер) - узнаём кто сделал вызов (cid - код клиента)
+        # bill.Y2025M07.to - поле to (целевой номер) - узнаём направление (nid - код направления)
+        # customers.Cust - по коду клиента (CustID=cid) узнаём тарифный план (Cust.tid_t): 1..5
+        # tarif.mtsTar - по каждому направлению (nid) и тарифному плану(tid:1..5) есть стоимость(tar) за 1 минуту
+        # стоимость разговора: cost = tar * bill.Y2025M07.min
+
+        # cur.execute(sql)
+        # for line in cur:
+        #     tid, cid, city, tab_mn = line
+        #     tar_mn = None
+        #     if tab_mn != '-':
+        #         tar_mn = TarHuhtamaki(dsn=self.dsn, table=tab_mn)
+        #         # tar_mn.print_tar()
+        #     self.tarplans[str(tid)] = dict(tid=tid, cid=cid, city=city, tar_mn=tar_mn)
 
         cur.close()
         db.close()
@@ -284,20 +294,20 @@ class Tarmts(object):
             f.write(st + "\n")
             f.close()
 
-    def prn_tarplans(self):
-        """
-        Печать тарифных планов (tid, cid, city, tartab )
-        """
-        print('tarplans:')
-        n = 0
-        for k, v in self.tarplans.items():
-            q = self.tarplans[k]
-            st = "tid:{tid} {{ cid:{cid}, city:{city}, tar_mn:'{tar_mn}'}}".format(
-                tid=k, cid=q['cid'], city=q['city'], tar_mn=q['tar_mn'])
-            print(st)
-            n += 1
-
-        print("result:{n} records".format(n=n))
+    # def prn_tarplans(self):
+    #     """
+    #     Печать тарифных планов (tid, cid, city, tartab )
+    #     """
+    #     print('tarplans:')
+    #     n = 0
+    #     for k, v in self.tarplans.items():
+    #         q = self.tarplans[k]
+    #         st = "tid:{tid} {{ cid:{cid}, city:{city}, tar_mn:'{tar_mn}'}}".format(
+    #             tid=k, cid=q['cid'], city=q['city'], tar_mn=q['tar_mn'])
+    #         print(st)
+    #         n += 1
+    #
+    #     print("result:{n} records".format(n=n))
 
     @staticmethod
     def join_nidcid(nid, cid):
@@ -407,11 +417,11 @@ class Tarmts(object):
         else:
             return 0
 
-    def get_tarplan_info(self, tid):
-        """
-        возвращает информацию ({tid, cid, city, tar_mn}) по номеру тарифного плана (tid = tariff_id)
-        """
-        return self.tarplans.get(str(tid), None)
+    # def get_tarplan_info(self, tid):
+    #     """
+    #     возвращает информацию ({tid, cid, city, tar_mn}) по номеру тарифного плана (tid = tariff_id)
+    #     """
+    #     return self.tarplans.get(str(tid), None)
 
     def get_name_zona_tar_tara(self, nid, cid):
         """
@@ -548,13 +558,12 @@ class Tarmts(object):
                 if stat == 'MN' and prx.startswith(code):
                     desc, zona, tar, tara, ok = self.get_name_zona_tar_tara2(nid, tid)
                     # у клиента может быть отдельный тариф на МН
-                    tar_mn = self.get_tarplan_info(tid)['tar_mn']
-                    if tar_mn:
-                        info = tar_mn.get_info(tox)
-                        if info:
-                            # desc = info['dest'] + '({code})'.format(code=info['code'])
-                            desc = info['dest']
-                            tar = info['tar']
+                    # tar_mn = self.get_tarplan_info(tid)['tar_mn']
+                    # if tar_mn:
+                    #     info = tar_mn.get_info(tox)
+                    #     if info:
+                    #         desc = info['dest']
+                    #         tar = info['tar']
                     break
 
         elif sts == 'gd':
@@ -632,19 +641,19 @@ if __name__ == '__main__':
     #
     # print("size_tariff : {size}".format(size=mts.size_tariff()))
 
-    print(mts.prn_tarplans())
+    # print(mts.prn_tarplans())
     print(".")
 
-    for tid in (1, 10, 31, 100):
-        _info = mts.get_tarplan_info(tid)
-
-        if not _info:
-            print("info for tid={tid} not found".format(tid=tid))
-        else:
-            print(_info)
-            if _info['tar_mn']:
-                print('special tar plan for tid={tid}'.format(tid=tid))
-                _tar_mn = _info['tar_mn']
-                number = '1037322408300'
-                a = _tar_mn.get_info(number)
-                print('{number}: {info}'.format(number=number, info=a))
+    # for tid in (1, 10, 31, 100):
+    #     _info = mts.get_tarplan_info(tid)
+    #
+    #     if not _info:
+    #         print("info for tid={tid} not found".format(tid=tid))
+    #     else:
+    #         print(_info)
+    #         if _info['tar_mn']:
+    #             print('special tar plan for tid={tid}'.format(tid=tid))
+    #             _tar_mn = _info['tar_mn']
+    #             number = '1037322408300'
+    #             a = _tar_mn.get_info(number)
+    #             print('{number}: {info}'.format(number=number, info=a))
