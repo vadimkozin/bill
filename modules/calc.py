@@ -92,8 +92,11 @@ def sum_with_smart_nds(val, how_calculate_nds='*', ndigits=2):
 
 if __name__ == '__main__':
 
+    # НДС
+    print("\nNDS:{nds}".format(nds=cfg.ndskoff))
+
     print("\n# НДС на число:")
-    for v in (100, 551, 2000):
+    for v in (100, 551, 2000, 6549.83, 1944.60):
         print("val:{val:<7} nds:{nds}".format(val=v, nds=nds(v)))
 
     print("\n# НДС из числа:")

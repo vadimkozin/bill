@@ -155,6 +155,9 @@ class Billing(object):
         cursor = db.cursor()
         table = self.table
 
+        # НДС
+        print("\nNDS:{nds}".format(nds=cfg.ndskoff))
+
         # для результатов
         res = result.Result()
 
