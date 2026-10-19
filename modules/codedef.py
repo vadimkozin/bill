@@ -641,7 +641,7 @@ class Codedef(object):
 
 
 if __name__ == '__main__':
-
+    #
     logging.basicConfig(filename=flog, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S",
                         format='%(asctime)s %(message)s', )
     log = logging.getLogger('app')
